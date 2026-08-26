@@ -1,0 +1,7 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/DeveloperBrowser.App/DeveloperBrowser.App.csproj" />
+    <Project Path="src/DeveloperBrowser.Core/DeveloperBrowser.Core.csproj" />
+    <Project Path="src/DeveloperBrowser.Infrastructure/DeveloperBrowser.Infrastructure.csproj" />
+  </Folder>
+</Solution>
