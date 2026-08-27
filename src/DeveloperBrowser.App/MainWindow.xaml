@@ -14,7 +14,7 @@
         <Grid.RowDefinitions>
             <RowDefinition Height="62" />
             <RowDefinition Height="*" />
-            <RowDefinition Height="174" />
+            <RowDefinition x:Name="NetworkDrawerRow" Height="0" />
             <RowDefinition Height="28" />
         </Grid.RowDefinitions>
 
@@ -25,7 +25,7 @@
                     <Button Style="{StaticResource IconButton}" Content="⌂" ToolTip="Browser" Click="ShowBrowserWorkspace_Click" />
                     <Button Style="{StaticResource IconButton}" Content="↗" ToolTip="REST client" Click="ShowRestWorkspace_Click" />
                     <Button Style="{StaticResource IconButton}" Content="◫" ToolTip="Collections" />
-                    <Button Style="{StaticResource IconButton}" Content="⌘" ToolTip="Developer tools" />
+                    <Button Style="{StaticResource IconButton}" Content="◒" ToolTip="Network inspector" Click="ToggleNetworkInspector_Click" />
                 </StackPanel>
                 <StackPanel DockPanel.Dock="Bottom">
                     <Button Style="{StaticResource IconButton}" Content="⚙" ToolTip="Settings" />
@@ -56,7 +56,7 @@
             </Grid>
         </Border>
 
-        <Grid x:Name="BrowserWorkspace" Grid.Row="1" Grid.Column="1">
+        <Grid x:Name="BrowserWorkspace" Grid.Row="1" Grid.Column="1" Grid.ColumnSpan="2">
             <Grid.RowDefinitions><RowDefinition Height="42" /><RowDefinition Height="*" /></Grid.RowDefinitions>
             <Border Background="{StaticResource PanelBrush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,0,1">
                 <DockPanel Margin="14,0">
@@ -68,23 +68,12 @@
         </Grid>
 
         <Grid x:Name="RestWorkspace" Grid.Row="1" Grid.Column="1" Grid.ColumnSpan="2" Grid.RowSpan="2" Visibility="Collapsed" Panel.ZIndex="10">
-            <local:RestClientView />
+            <local:RestClientView x:Name="RestClientView" />
         </Grid>
 
-        <Border Grid.Row="1" Grid.Column="2" Grid.RowSpan="2" Background="{StaticResource PanelBrush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1,0,0,0">
-            <Grid Margin="18"><Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions>
-                <TextBlock Text="INSPECTOR" Foreground="{StaticResource MutedTextBrush}" FontSize="12" FontWeight="SemiBold" />
-                <Border Grid.Row="1" Background="{StaticResource SurfaceBrush}" CornerRadius="10" Margin="0,14,0,16" Padding="12"><StackPanel><StackPanel Orientation="Horizontal"><Ellipse Width="8" Height="8" Fill="#FF61D095" Margin="0,0,8,0" /><TextBlock Text="Page session active" Foreground="{StaticResource PrimaryTextBrush}" FontWeight="SemiBold" FontSize="13" /></StackPanel><TextBlock Text="Chromium · WebView2" Foreground="{StaticResource MutedTextBrush}" FontSize="12" Margin="16,5,0,0" /></StackPanel></Border>
-                <StackPanel Grid.Row="2" Orientation="Horizontal" Margin="0,0,0,12"><TextBlock Text="Network" Foreground="{StaticResource PrimaryTextBrush}" FontWeight="SemiBold" /><TextBlock Text="  0 requests" Foreground="{StaticResource MutedTextBrush}" FontSize="12" VerticalAlignment="Center" /></StackPanel>
-                <StackPanel Grid.Row="3"><Border Height="1" Background="{StaticResource BorderBrush}" /><TextBlock Text="Requests will appear here when network capture is enabled." TextWrapping="Wrap" Foreground="{StaticResource MutedTextBrush}" FontSize="12" Margin="0,14,0,0" /><Button Content="Enable capture" Style="{StaticResource PrimaryButton}" HorizontalAlignment="Left" Margin="0,16,0,0" /></StackPanel>
-            </Grid>
-        </Border>
-
-        <Border Grid.Row="2" Grid.Column="1" Background="#FF15171D" BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,1,0,0">
-            <Grid Margin="18,12"><Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions>
-                <StackPanel Orientation="Horizontal"><TextBlock Text="ACTIVITY" Foreground="{StaticResource MutedTextBrush}" FontSize="12" FontWeight="SemiBold" /><TextBlock Text="Console" Foreground="{StaticResource PrimaryTextBrush}" FontSize="13" Margin="20,0,0,0" /><TextBlock Text="REST client" Foreground="{StaticResource MutedTextBrush}" FontSize="13" Margin="20,0,0,0" /><TextBlock Text="Problems" Foreground="{StaticResource MutedTextBrush}" FontSize="13" Margin="20,0,0,0" /></StackPanel>
-                <TextBlock Grid.Row="1" Text="Ready. Open a page, inspect its traffic, or switch to the REST workspace." FontFamily="Cascadia Mono" FontSize="12" Foreground="#FF9AA4B6" VerticalAlignment="Center" />
-            </Grid>
+        <Border x:Name="NetworkInspectorHost" Grid.Row="2" Grid.Column="1" Grid.ColumnSpan="2" Background="{StaticResource CanvasBrush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1,1,0,0" Visibility="Collapsed" Panel.ZIndex="20">
+            <Border.RenderTransform><TranslateTransform x:Name="NetworkInspectorTranslate" Y="340" /></Border.RenderTransform>
+            <local:NetworkInspectorView x:Name="NetworkInspector" />
         </Border>
 
         <Border Grid.Row="3" Grid.Column="1" Grid.ColumnSpan="2" Background="{StaticResource AccentBrush}"><Grid Margin="14,0"><TextBlock Text="●  All systems ready" Foreground="White" FontSize="11" VerticalAlignment="Center" /><TextBlock Text="UTF-8     Spaces: 4" Foreground="#FFDDEBFF" FontSize="11" HorizontalAlignment="Right" VerticalAlignment="Center" /></Grid></Border>

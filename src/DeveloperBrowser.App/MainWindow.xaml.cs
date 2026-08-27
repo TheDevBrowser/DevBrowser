@@ -2,6 +2,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Media.Animation;
 using DeveloperBrowser.Core.Browser;
 using Microsoft.Web.WebView2.Wpf;
 
@@ -10,11 +11,19 @@ namespace DeveloperBrowser.App;
 public partial class MainWindow : Window
 {
     private readonly List<BrowserTab> _tabs = [];
+    private readonly NetworkCaptureService _networkCapture = new();
     private BrowserTab? _activeTab;
 
     public MainWindow()
     {
         InitializeComponent();
+        NetworkInspector.Initialize(_networkCapture);
+        NetworkInspector.CloseRequested += (_, _) => HideNetworkInspector();
+        NetworkInspector.OpenInRestClientRequested += (_, request) =>
+        {
+            RestClientView.OpenCapturedRequest(request);
+            ShowRestWorkspace_Click(this, new RoutedEventArgs());
+        };
         Loaded += async (_, _) => await CreateTabAsync("https://www.bing.com");
     }
 
@@ -45,6 +54,7 @@ public partial class MainWindow : Window
         SelectTab(tab);
         await browser.EnsureCoreWebView2Async();
         await browser.CoreWebView2.AddScriptToExecuteOnDocumentCreatedAsync(BrowserInstrumentation.ConsoleForwarderScript);
+        await _networkCapture.AttachAsync(browser.CoreWebView2);
         browser.Source = ToAddress(address ?? "https://www.bing.com");
     }
 
@@ -119,6 +129,32 @@ public partial class MainWindow : Window
     {
         BrowserWorkspace.Visibility = Visibility.Collapsed;
         RestWorkspace.Visibility = Visibility.Visible;
+        HideNetworkInspector();
+    }
+
+    private void ToggleNetworkInspector_Click(object sender, RoutedEventArgs e)
+    {
+        if (NetworkInspectorHost.Visibility == Visibility.Visible) HideNetworkInspector();
+        else ShowNetworkInspector();
+    }
+
+    private void ShowNetworkInspector()
+    {
+        NetworkDrawerRow.Height = new GridLength(340);
+        NetworkInspectorHost.Visibility = Visibility.Visible;
+        NetworkInspectorTranslate.BeginAnimation(TranslateTransform.YProperty, new DoubleAnimation(340, 0, TimeSpan.FromMilliseconds(180)) { EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut } });
+    }
+
+    private void HideNetworkInspector()
+    {
+        if (NetworkInspectorHost.Visibility != Visibility.Visible) return;
+        var animation = new DoubleAnimation(NetworkInspectorTranslate.Y, 340, TimeSpan.FromMilliseconds(150)) { EasingFunction = new CubicEase { EasingMode = EasingMode.EaseIn } };
+        animation.Completed += (_, _) =>
+        {
+            NetworkInspectorHost.Visibility = Visibility.Collapsed;
+            NetworkDrawerRow.Height = new GridLength(0);
+        };
+        NetworkInspectorTranslate.BeginAnimation(TranslateTransform.YProperty, animation);
     }
 
     private void Back_Click(object sender, RoutedEventArgs e)

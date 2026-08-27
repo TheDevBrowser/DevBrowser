@@ -85,10 +85,33 @@ public partial class RestClientView : UserControl
     {
         CaptureActiveTab();
         var tab = new RestRequestTab { Url = _requestTabs.Count == 0 ? "https://api.github.com/repos/dotnet/runtime" : string.Empty };
+        AddRequestTab(tab);
+    }
+
+    private void AddRequestTab(RestRequestTab tab)
+    {
         tab.Header = CreateRequestTabHeader(tab);
         _requestTabs.Add(tab);
         RequestTabStrip.Children.Add(tab.Header);
         SelectRequestTab(tab);
+    }
+
+    public void OpenCapturedRequest(CapturedNetworkRequest request)
+    {
+        CaptureActiveTab();
+        var url = request.Url;
+        var parameters = request.QueryParameters().Select(pair => new RequestField { Key = pair.Key, Value = pair.Value }).ToList();
+        if (Uri.TryCreate(request.Url, UriKind.Absolute, out var uri)) url = uri.GetLeftPart(UriPartial.Path);
+        var tab = new RestRequestTab
+        {
+            MethodIndex = Math.Max(0, Array.IndexOf(Methods, request.Method.ToUpperInvariant())),
+            Url = url,
+            Body = request.RequestBody ?? string.Empty,
+            Parameters = parameters,
+            Headers = request.RequestHeaders.Select(header => new RequestField { Key = header.Key, Value = header.Value }).ToList(),
+            ContentTypeIndex = request.RequestContentType.Contains("xml", StringComparison.OrdinalIgnoreCase) ? 2 : request.RequestContentType.Contains("text", StringComparison.OrdinalIgnoreCase) ? 1 : 0
+        };
+        AddRequestTab(tab);
     }
 
     private Border CreateRequestTabHeader(RestRequestTab tab)
