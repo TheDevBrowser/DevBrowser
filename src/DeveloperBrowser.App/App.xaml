@@ -8,8 +8,8 @@
         <Color x:Key="Surface">#FF20232B</Color>
         <Color x:Key="SurfaceHover">#FF292D37</Color>
         <Color x:Key="Border">#FF303440</Color>
-        <Color x:Key="TextPrimary">#FFF2F4F8</Color>
-        <Color x:Key="TextMuted">#FF9098A8</Color>
+        <Color x:Key="TextPrimary">#FFF8FAFC</Color>
+        <Color x:Key="TextMuted">#FFB8C2D1</Color>
         <Color x:Key="Accent">#FF2F80ED</Color>
         <SolidColorBrush x:Key="CanvasBrush" Color="{StaticResource Canvas}" />
         <SolidColorBrush x:Key="PanelBrush" Color="{StaticResource Panel}" />
@@ -26,7 +26,12 @@
             <Setter Property="BorderThickness" Value="1" />
             <Setter Property="Padding" Value="12,7" />
             <Setter Property="FontSize" Value="13" />
-            <Setter Property="FontFamily" Value="Segoe UI Variable Text" />
+            <Setter Property="FontFamily" Value="Segoe UI" />
+        </Style>
+        <Style TargetType="{x:Type TextBlock}">
+            <Setter Property="FontFamily" Value="Segoe UI" />
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="TextOptions.TextFormattingMode" Value="Display" />
         </Style>
         <Style x:Key="IconButton" TargetType="{x:Type Button}">
             <Setter Property="Foreground" Value="{StaticResource MutedTextBrush}" />
