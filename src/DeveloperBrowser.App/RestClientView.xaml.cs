@@ -61,8 +61,7 @@ public partial class RestClientView : UserControl
             stopwatch.Stop();
 
             var responseBody = await response.Content.ReadAsStringAsync();
-            ResponseBodyBox.Text = FormatBody(responseBody);
-            ResponseJsonTree.SetJson(responseBody);
+            ResponseDataViewer.SetContent(responseBody, response.Content.Headers.ContentType?.MediaType);
             ResponseHeadersBox.Text = string.Join(Environment.NewLine, response.Headers.Concat(response.Content.Headers).Select(header => $"{header.Key}: {string.Join(", ", header.Value)}"));
             StatusText.Text = $"{(int)response.StatusCode} {response.ReasonPhrase}";
             StatusBadge.Background = new SolidColorBrush(response.IsSuccessStatusCode ? Color.FromRgb(29, 100, 70) : Color.FromRgb(128, 56, 64));
@@ -74,8 +73,7 @@ public partial class RestClientView : UserControl
             StatusText.Text = "Request failed";
             StatusBadge.Background = new SolidColorBrush(Color.FromRgb(128, 56, 64));
             ResponseMetaText.Text = exception.GetType().Name;
-            ResponseBodyBox.Text = exception.Message;
-            ResponseJsonTree.SetJson(null);
+            ResponseDataViewer.SetContent(exception.Message, "text/plain");
             ResponseHeadersBox.Text = string.Empty;
             CaptureActiveTab();
         }
@@ -149,9 +147,8 @@ public partial class RestClientView : UserControl
         foreach (var field in tab.Parameters) Parameters.Add(field.Clone());
         Headers.Clear();
         foreach (var field in tab.Headers) Headers.Add(field.Clone());
-        ResponseBodyBox.Text = tab.ResponseBody;
+        ResponseDataViewer.SetContent(tab.ResponseBody);
         ResponseHeadersBox.Text = tab.ResponseHeaders;
-        ResponseJsonTree.SetJson(tab.ResponseBody);
         StatusText.Text = tab.Status;
         ResponseMetaText.Text = tab.ResponseMeta;
         StatusBadge.Background = tab.StatusBrush;
@@ -174,7 +171,7 @@ public partial class RestClientView : UserControl
         tab.Password = PasswordBox.Password;
         tab.Parameters = Parameters.Select(field => field.Clone()).ToList();
         tab.Headers = Headers.Select(field => field.Clone()).ToList();
-        tab.ResponseBody = ResponseBodyBox.Text;
+        tab.ResponseBody = ResponseDataViewer.RawText;
         tab.ResponseHeaders = ResponseHeadersBox.Text;
         tab.Status = StatusText.Text;
         tab.ResponseMeta = ResponseMetaText.Text;
@@ -233,13 +230,6 @@ public partial class RestClientView : UserControl
     }
 
     private static string SelectedContent(ComboBox comboBox) => (comboBox.SelectedItem as ComboBoxItem)?.Content?.ToString() ?? string.Empty;
-    private static string FormatBody(string body)
-    {
-        if (string.IsNullOrWhiteSpace(body)) return "(Empty response)";
-        try { using var document = JsonDocument.Parse(body); return JsonSerializer.Serialize(document, new JsonSerializerOptions { WriteIndented = true }); }
-        catch (JsonException) { return body; }
-    }
-
     private void UrlBox_KeyDown(object sender, KeyEventArgs e) { if (e.Key == Key.Enter) { _ = SendAsync(); e.Handled = true; } }
     private void UrlBox_TextChanged(object sender, TextChangedEventArgs e) { if (!_isRestoringTab && _activeRequestTab is not null) { _activeRequestTab.Url = UrlBox.Text; UpdateRequestTabHeader(_activeRequestTab); } }
     private void MethodBox_SelectionChanged(object sender, SelectionChangedEventArgs e) { if (!_isRestoringTab && _activeRequestTab is not null) { _activeRequestTab.MethodIndex = Math.Max(0, MethodBox.SelectedIndex); UpdateRequestTabHeader(_activeRequestTab); } }
@@ -259,7 +249,7 @@ public partial class RestClientView : UserControl
         BasicPanel.Visibility = AuthTypeBox.SelectedIndex == 2 ? Visibility.Visible : Visibility.Collapsed;
     }
 
-    private void CopyResponse_Click(object sender, RoutedEventArgs e) { if (!string.IsNullOrEmpty(ResponseBodyBox.Text)) Clipboard.SetText(ResponseBodyBox.Text); }
+    private void CopyResponse_Click(object sender, RoutedEventArgs e) => ResponseDataViewer.CopyFullContent();
 
     public sealed class RequestField { public bool IsEnabled { get; set; } = true; public string Key { get; set; } = string.Empty; public string? Value { get; set; } public RequestField Clone() => new() { IsEnabled = IsEnabled, Key = Key, Value = Value }; }
 

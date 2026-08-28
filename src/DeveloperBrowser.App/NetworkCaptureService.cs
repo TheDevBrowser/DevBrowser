@@ -20,7 +20,9 @@ public sealed class NetworkCaptureService
         if (!_attachedWebViews.Add(webView)) return;
         await webView.CallDevToolsProtocolMethodAsync("Network.enable", "{}");
         Subscribe(webView, "Network.requestWillBeSent", OnRequestWillBeSent);
+        Subscribe(webView, "Network.requestWillBeSentExtraInfo", OnRequestWillBeSentExtraInfo);
         Subscribe(webView, "Network.responseReceived", OnResponseReceived);
+        Subscribe(webView, "Network.responseReceivedExtraInfo", OnResponseReceivedExtraInfo);
         Subscribe(webView, "Network.loadingFinished", OnLoadingFinished);
         Subscribe(webView, "Network.loadingFailed", OnLoadingFailed);
     }
@@ -70,12 +72,22 @@ public sealed class NetworkCaptureService
             Url = url,
             ResourceType = root.TryGetProperty("type", out var type) ? type.GetString() ?? "Other" : "Other",
             StartedAt = root.TryGetProperty("timestamp", out var timestamp) ? timestamp.GetDouble() : 0,
+            PageUrl = root.TryGetProperty("documentURL", out var documentUrl) ? documentUrl.GetString() : null,
             RequestHeaders = Headers(request.GetProperty("headers")),
             RequestBody = request.TryGetProperty("postData", out var postData) ? postData.GetString() : null
         };
         _inFlight[requestId] = captured;
         _webviewsByRequestId[requestId] = webView;
         AddRequest(captured);
+    }
+
+    private void OnRequestWillBeSentExtraInfo(CoreWebView2 webView, CoreWebView2DevToolsProtocolEventReceivedEventArgs args)
+    {
+        using var document = JsonDocument.Parse(args.ParameterObjectAsJson);
+        var root = document.RootElement;
+        var requestId = root.GetProperty("requestId").GetString() ?? string.Empty;
+        if (_inFlight.TryGetValue(requestId, out var captured) && root.TryGetProperty("headers", out var headers))
+            captured.MergeRequestHeaders(Headers(headers));
     }
 
     private void OnResponseReceived(CoreWebView2 webView, CoreWebView2DevToolsProtocolEventReceivedEventArgs args)
@@ -86,6 +98,15 @@ public sealed class NetworkCaptureService
         if (!_inFlight.TryGetValue(requestId, out var captured)) return;
         var response = root.GetProperty("response");
         captured.SetResponse(response.GetProperty("status").GetInt32(), Headers(response.GetProperty("headers")));
+    }
+
+    private void OnResponseReceivedExtraInfo(CoreWebView2 webView, CoreWebView2DevToolsProtocolEventReceivedEventArgs args)
+    {
+        using var document = JsonDocument.Parse(args.ParameterObjectAsJson);
+        var root = document.RootElement;
+        var requestId = root.GetProperty("requestId").GetString() ?? string.Empty;
+        if (_inFlight.TryGetValue(requestId, out var captured) && root.TryGetProperty("headers", out var headers))
+            captured.MergeResponseHeaders(Headers(headers));
     }
 
     private void OnLoadingFinished(CoreWebView2 webView, CoreWebView2DevToolsProtocolEventReceivedEventArgs args)
@@ -101,7 +122,18 @@ public sealed class NetworkCaptureService
         using var document = JsonDocument.Parse(args.ParameterObjectAsJson);
         var root = document.RootElement;
         var requestId = root.GetProperty("requestId").GetString() ?? string.Empty;
-        if (_inFlight.TryGetValue(requestId, out var captured)) captured.SetFailed(root.TryGetProperty("errorText", out var error) ? error.GetString() ?? "Failed" : "Failed", root.TryGetProperty("timestamp", out var timestamp) ? timestamp.GetDouble() : captured.StartedAt);
+        if (_inFlight.TryGetValue(requestId, out var captured))
+        {
+            var blockedReason = root.TryGetProperty("blockedReason", out var blocked) ? blocked.GetString() : null;
+            string? corsError = null;
+            if (root.TryGetProperty("corsErrorStatus", out var corsStatus))
+            {
+                var error = corsStatus.TryGetProperty("corsError", out var cors) ? cors.GetString() : null;
+                var parameter = corsStatus.TryGetProperty("failedParameter", out var failedParameter) ? failedParameter.GetString() : null;
+                corsError = string.IsNullOrWhiteSpace(parameter) ? error : $"{error} ({parameter})";
+            }
+            captured.SetFailed(root.TryGetProperty("errorText", out var errorText) ? errorText.GetString() ?? "Failed" : "Failed", root.TryGetProperty("timestamp", out var timestamp) ? timestamp.GetDouble() : captured.StartedAt, blockedReason, corsError);
+        }
     }
 
     private void AddRequest(CapturedNetworkRequest request)

@@ -10,12 +10,15 @@ public sealed class CapturedNetworkRequest : INotifyPropertyChanged
     private string _responseContentType = string.Empty;
     private string _failureReason = string.Empty;
     private string? _responseBody;
+    private string? _blockedReason;
+    private string? _corsError;
 
     public required string RequestId { get; init; }
     public required string Method { get; init; }
     public required string Url { get; init; }
     public required string ResourceType { get; init; }
     public required double StartedAt { get; init; }
+    public string? PageUrl { get; init; }
     public Dictionary<string, string> RequestHeaders { get; init; } = new(StringComparer.OrdinalIgnoreCase);
     public Dictionary<string, string> ResponseHeaders { get; } = new(StringComparer.OrdinalIgnoreCase);
     public string? RequestBody { get; init; }
@@ -25,6 +28,8 @@ public sealed class CapturedNetworkRequest : INotifyPropertyChanged
     public double? DurationMs { get => _durationMs; private set { SetField(ref _durationMs, value); OnPropertyChanged(nameof(DurationText)); } }
     public string FailureReason { get => _failureReason; private set { SetField(ref _failureReason, value); OnPropertyChanged(nameof(IsFailed)); } }
     public string? ResponseBody { get => _responseBody; set => SetField(ref _responseBody, value); }
+    public string? BlockedReason { get => _blockedReason; private set => SetField(ref _blockedReason, value); }
+    public string? CorsError { get => _corsError; private set => SetField(ref _corsError, value); }
     public bool IsFailed => StatusCode >= 400 || !string.IsNullOrEmpty(FailureReason);
     public string StatusText => StatusCode?.ToString() ?? (string.IsNullOrEmpty(FailureReason) ? "…" : "Failed");
     public string DurationText => DurationMs is null ? "—" : $"{DurationMs.Value:0} ms";
@@ -32,13 +37,30 @@ public sealed class CapturedNetworkRequest : INotifyPropertyChanged
     public void SetResponse(int statusCode, Dictionary<string, string> headers)
     {
         StatusCode = statusCode;
-        ResponseHeaders.Clear();
+        foreach (var (name, value) in headers) ResponseHeaders[name] = value;
+        ResponseContentType = HeaderValue(ResponseHeaders, "Content-Type");
+    }
+
+    public void MergeRequestHeaders(IReadOnlyDictionary<string, string> headers)
+    {
+        foreach (var (name, value) in headers) RequestHeaders[name] = value;
+        OnPropertyChanged(nameof(RequestContentType));
+    }
+
+    public void MergeResponseHeaders(IReadOnlyDictionary<string, string> headers)
+    {
         foreach (var (name, value) in headers) ResponseHeaders[name] = value;
         ResponseContentType = HeaderValue(ResponseHeaders, "Content-Type");
     }
 
     public void SetFinished(double timestamp) => DurationMs = Math.Max(0, (timestamp - StartedAt) * 1000);
-    public void SetFailed(string reason, double timestamp) { FailureReason = reason; SetFinished(timestamp); }
+    public void SetFailed(string reason, double timestamp, string? blockedReason = null, string? corsError = null)
+    {
+        FailureReason = reason;
+        BlockedReason = blockedReason;
+        CorsError = corsError;
+        SetFinished(timestamp);
+    }
 
     public IEnumerable<KeyValuePair<string, string>> QueryParameters()
     {

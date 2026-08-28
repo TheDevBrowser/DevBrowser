@@ -5,6 +5,8 @@ using System.Windows.Controls;
 using System.Windows.Data;
 using System.Windows.Media;
 using DeveloperBrowser.Core.Security;
+using DeveloperBrowser.Core.Networking;
+using System.Text.RegularExpressions;
 
 namespace DeveloperBrowser.App;
 
@@ -75,10 +77,11 @@ public partial class NetworkInspectorView : UserControl
         _selectedRequest = RequestList.SelectedItem as CapturedNetworkRequest;
         if (_selectedRequest is null) { ClearDetail(); return; }
         PopulateDetail(_selectedRequest);
+        await UpdatePolicyAnalysisAsync(_selectedRequest);
         if (_capture is not null)
         {
             await _capture.EnsureResponseBodyAsync(_selectedRequest);
-            if (_selectedRequest == RequestList.SelectedItem) ResponseBodyBox.Text = _selectedRequest.ResponseBody ?? "(Response body is not available yet.)";
+            if (_selectedRequest == RequestList.SelectedItem) ResponseDataViewer.SetContent(_selectedRequest.ResponseBody ?? "(Response body is not available yet.)", _selectedRequest.ResponseContentType);
         }
     }
 
@@ -93,18 +96,21 @@ public partial class NetworkInspectorView : UserControl
         ResponseHeadersBox.Text = FormatHeaders(request.ResponseHeaders);
         QueryBox.Text = string.Join(Environment.NewLine, request.QueryParameters().Select(pair => $"{pair.Key}: {pair.Value}"));
         RequestBodyBox.Text = request.RequestBody ?? "(No request body)";
-        ResponseBodyBox.Text = request.ResponseBody ?? "Loading response body…";
+        ResponseDataViewer.SetContent(request.ResponseBody ?? "Loading response body…", request.ResponseContentType);
         CookiesBox.Text = string.IsNullOrEmpty(request.Cookies()) ? "(No cookies available)" : request.Cookies();
         TimingBox.Text = $"Started: {request.StartedAt:0.000}s{Environment.NewLine}Duration: {request.DurationText}{Environment.NewLine}Status: {request.StatusText}{(string.IsNullOrEmpty(request.FailureReason) ? string.Empty : $"{Environment.NewLine}Failure: {request.FailureReason}")}";
         OpenInRestButton.IsEnabled = true;
         JwtInspectButton.IsEnabled = TryGetAuthorizationHeader(request, out var authorizationHeader) && JwtTokenInspector.IsBearerJwt(authorizationHeader);
         ClearJwtDetail();
+        PolicyAnalysisBox.Text = BuildPolicyReport(request).ToDisplayText();
     }
 
     private void ClearDetail()
     {
         DetailMethodText.Text = "Select a request"; DetailUrlText.Text = string.Empty; DetailStatusText.Text = "No request selected"; DetailTimingText.Text = string.Empty;
-        RequestHeadersBox.Text = ResponseHeadersBox.Text = QueryBox.Text = RequestBodyBox.Text = ResponseBodyBox.Text = CookiesBox.Text = TimingBox.Text = string.Empty;
+        RequestHeadersBox.Text = ResponseHeadersBox.Text = QueryBox.Text = RequestBodyBox.Text = CookiesBox.Text = TimingBox.Text = string.Empty;
+        ResponseDataViewer.SetContent(null);
+        PolicyAnalysisBox.Text = string.Empty;
         OpenInRestButton.IsEnabled = false;
         JwtInspectButton.IsEnabled = false;
         ClearJwtDetail();
@@ -179,4 +185,62 @@ public partial class NetworkInspectorView : UserControl
         JwtTokenInspector.IsBearerJwt(value) ? "Bearer •••• (JWT detected)" :
         value.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase) ? "Bearer ••••" :
         "••••";
+
+    private async Task UpdatePolicyAnalysisAsync(CapturedNetworkRequest request)
+    {
+        if (_capture is null) return;
+        if (request.BlockedReason?.Contains("csp", StringComparison.OrdinalIgnoreCase) == true)
+        {
+            var pageDocument = _capture.Requests.LastOrDefault(candidate =>
+                candidate.ResourceType.Equals("Document", StringComparison.OrdinalIgnoreCase) &&
+                candidate.Url.Equals(request.PageUrl, StringComparison.OrdinalIgnoreCase));
+            if (pageDocument is not null) await _capture.EnsureResponseBodyAsync(pageDocument);
+        }
+        if (request == _selectedRequest) PolicyAnalysisBox.Text = BuildPolicyReport(request).ToDisplayText();
+    }
+
+    private NetworkPolicyReport BuildPolicyReport(CapturedNetworkRequest request)
+    {
+        var captured = _capture?.Requests.ToArray() ?? [];
+        var policies = GetPagePolicies(request, captured);
+        var current = ToEvidence(request, policies);
+        var all = captured.Select(candidate => ToEvidence(candidate, candidate == request ? policies : [])).ToArray();
+        return NetworkPolicyAnalyzer.Analyze(current, all);
+    }
+
+    private static NetworkRequestEvidence ToEvidence(CapturedNetworkRequest request, IReadOnlyList<string> policies)
+    {
+        var credentials = request.RequestHeaders.Keys.Any(header => header.Equals("Cookie", StringComparison.OrdinalIgnoreCase) || header.Equals("Authorization", StringComparison.OrdinalIgnoreCase))
+            ? "Credentials may be included (Cookie or Authorization header observed; Fetch credentials mode is not directly exposed)."
+            : "Not directly exposed by CDP; no Cookie or Authorization header observed.";
+        return new NetworkRequestEvidence(
+            request.RequestId, request.Url, request.Method, request.ResourceType, request.StartedAt, request.PageUrl,
+            request.RequestHeaders, request.ResponseHeaders, request.StatusCode, request.IsFailed, request.FailureReason,
+            request.BlockedReason, request.CorsError, credentials, policies);
+    }
+
+    private static IReadOnlyList<string> GetPagePolicies(CapturedNetworkRequest request, IEnumerable<CapturedNetworkRequest> all)
+    {
+        if (string.IsNullOrWhiteSpace(request.PageUrl)) return [];
+        var pageDocuments = all.Where(candidate => candidate.ResourceType.Equals("Document", StringComparison.OrdinalIgnoreCase) &&
+                                                   candidate.Url.Equals(request.PageUrl, StringComparison.OrdinalIgnoreCase));
+        var policies = new List<string>();
+        foreach (var document in pageDocuments)
+        {
+            foreach (var header in new[] { "Content-Security-Policy", "Content-Security-Policy-Report-Only" })
+                if (document.ResponseHeaders.TryGetValue(header, out var policy) && !string.IsNullOrWhiteSpace(policy)) policies.Add(policy);
+            if (!string.IsNullOrWhiteSpace(document.ResponseBody)) policies.AddRange(ExtractMetaPolicies(document.ResponseBody));
+        }
+        return policies;
+    }
+
+    private static IEnumerable<string> ExtractMetaPolicies(string html)
+    {
+        foreach (Match tag in Regex.Matches(html, @"<meta\b[^>]*>", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant))
+        {
+            if (!Regex.IsMatch(tag.Value, @"http-equiv\s*=\s*(['""]?)content-security-policy\1", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)) continue;
+            var content = Regex.Match(tag.Value, @"content\s*=\s*(['""])(?<value>.*?)\1", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+            if (content.Success && !string.IsNullOrWhiteSpace(content.Groups["value"].Value)) yield return content.Groups["value"].Value;
+        }
+    }
 }

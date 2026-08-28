@@ -1,19 +1,19 @@
 <Application x:Class="DeveloperBrowser.App.App"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             StartupUri="MainWindow.xaml">
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
     <Application.Resources>
-        <Color x:Key="Canvas">#FF111217</Color>
-        <Color x:Key="Panel">#FF181A20</Color>
-        <Color x:Key="Surface">#FF20232B</Color>
-        <Color x:Key="SurfaceHover">#FF292D37</Color>
-        <Color x:Key="Border">#FF303440</Color>
+        <Color x:Key="Canvas">#FF10131A</Color>
+        <Color x:Key="Panel">#FF181D27</Color>
+        <Color x:Key="Surface">#FF222936</Color>
+        <Color x:Key="SurfaceHover">#FF2C3545</Color>
+        <Color x:Key="Border">#FF3A4558</Color>
         <Color x:Key="TextPrimary">#FFF8FAFC</Color>
-        <Color x:Key="TextMuted">#FFB8C2D1</Color>
-        <Color x:Key="Accent">#FF2F80ED</Color>
+        <Color x:Key="TextMuted">#FFB8C5D6</Color>
+        <Color x:Key="Accent">#FF3B82F6</Color>
         <SolidColorBrush x:Key="CanvasBrush" Color="{StaticResource Canvas}" />
         <SolidColorBrush x:Key="PanelBrush" Color="{StaticResource Panel}" />
         <SolidColorBrush x:Key="SurfaceBrush" Color="{StaticResource Surface}" />
+        <SolidColorBrush x:Key="SurfaceHoverBrush" Color="{StaticResource SurfaceHover}" />
         <SolidColorBrush x:Key="BorderBrush" Color="{StaticResource Border}" />
         <SolidColorBrush x:Key="PrimaryTextBrush" Color="{StaticResource TextPrimary}" />
         <SolidColorBrush x:Key="MutedTextBrush" Color="{StaticResource TextMuted}" />
@@ -36,20 +36,23 @@
         <Style x:Key="IconButton" TargetType="{x:Type Button}">
             <Setter Property="Foreground" Value="{StaticResource MutedTextBrush}" />
             <Setter Property="Background" Value="Transparent" />
-            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="BorderBrush" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="1" />
             <Setter Property="FontFamily" Value="Segoe UI Symbol" />
-            <Setter Property="FontSize" Value="17" />
-            <Setter Property="Width" Value="42" />
-            <Setter Property="Height" Value="42" />
-            <Setter Property="Margin" Value="0,4" />
+            <Setter Property="FontSize" Value="19" />
+            <Setter Property="Width" Value="46" />
+            <Setter Property="Height" Value="46" />
+            <Setter Property="Margin" Value="0,5" />
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="{x:Type Button}">
-                        <Border x:Name="Border" CornerRadius="10" Background="{TemplateBinding Background}">
+                        <Border x:Name="Border" CornerRadius="11" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}">
                             <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
                         </Border>
                         <ControlTemplate.Triggers>
-                            <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Border" Property="Background" Value="{StaticResource SurfaceBrush}" /><Setter Property="Foreground" Value="{StaticResource PrimaryTextBrush}" /></Trigger>
+                            <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Border" Property="Background" Value="{StaticResource SurfaceHoverBrush}" /><Setter TargetName="Border" Property="BorderBrush" Value="#FF52627B" /><Setter Property="Foreground" Value="{StaticResource PrimaryTextBrush}" /></Trigger>
+                            <Trigger Property="IsPressed" Value="True"><Setter TargetName="Border" Property="Background" Value="#FF202735" /><Setter TargetName="Border" Property="BorderBrush" Value="{StaticResource AccentBrush}" /><Setter Property="Foreground" Value="White" /></Trigger>
+                            <Trigger Property="IsKeyboardFocused" Value="True"><Setter TargetName="Border" Property="BorderBrush" Value="{StaticResource AccentBrush}" /></Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
                 </Setter.Value>
@@ -61,7 +64,7 @@
             <Setter Property="BorderThickness" Value="0" />
             <Setter Property="Padding" Value="15,7" />
             <Setter Property="FontWeight" Value="SemiBold" />
-            <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="{x:Type Button}"><Border Background="{TemplateBinding Background}" CornerRadius="8"><ContentPresenter Margin="{TemplateBinding Padding}" HorizontalAlignment="Center" VerticalAlignment="Center" /></Border></ControlTemplate></Setter.Value></Setter>
+            <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="{x:Type Button}"><Border x:Name="PrimaryBorder" Background="{TemplateBinding Background}" CornerRadius="8"><ContentPresenter Margin="{TemplateBinding Padding}" HorizontalAlignment="Center" VerticalAlignment="Center" /></Border><ControlTemplate.Triggers><Trigger Property="IsMouseOver" Value="True"><Setter TargetName="PrimaryBorder" Property="Background" Value="#FF5694F7" /></Trigger><Trigger Property="IsPressed" Value="True"><Setter TargetName="PrimaryBorder" Property="Background" Value="#FF2568C8" /></Trigger></ControlTemplate.Triggers></ControlTemplate></Setter.Value></Setter>
         </Style>
     </Application.Resources>
 </Application>
