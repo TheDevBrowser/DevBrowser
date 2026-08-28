@@ -3,6 +3,8 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
+using System.Collections.Specialized;
+using System.ComponentModel;
 using DeveloperBrowser.Core.Browser;
 using DeveloperBrowser.Core.Bookmarks;
 using Microsoft.Web.WebView2.Wpf;
@@ -19,6 +21,7 @@ public partial class MainWindow : Window
     private BrowserTab? _activeTab;
     private double _networkDrawerHeight = 340;
     private BookmarkItem? _editingBookmark;
+    private FooterWorkspace _footerWorkspace = FooterWorkspace.Browser;
 
     public MainWindow(IBookmarkService bookmarks, PageMetadataService pageMetadata)
     {
@@ -32,6 +35,11 @@ public partial class MainWindow : Window
         _bookmarkManager.Deleted += async (_, _) => { await UpdateBookmarkStateAsync(); };
         BookmarkManagerHost.Content = _bookmarkManager;
         NetworkInspector.Initialize(_networkCapture);
+        _networkCapture.Requests.CollectionChanged += NetworkRequests_CollectionChanged;
+        RestClientView.FooterStatusChanged += (_, status) =>
+        {
+            if (_footerWorkspace == FooterWorkspace.Rest) UpdateFooterStatus(status);
+        };
         NetworkInspector.CloseRequested += (_, _) => HideNetworkInspector();
         NetworkInspector.OpenInRestClientRequested += (_, request) =>
         {
@@ -43,6 +51,7 @@ public partial class MainWindow : Window
             await CreateTabAsync("https://www.google.com");
             await _bookmarkManager.RefreshAsync();
         };
+        UpdateFooterStatus();
     }
 
     private async Task CreateTabAsync(string? address = null)
@@ -101,12 +110,7 @@ public partial class MainWindow : Window
         var close = new Button
         {
             Content = "×",
-            Foreground = (Brush)FindResource("MutedTextBrush"),
-            Background = Brushes.Transparent,
-            BorderThickness = new Thickness(0),
-            FontSize = 15,
-            Width = 24,
-            Height = 28,
+            Style = (Style)FindResource("TabCloseButton"),
             Margin = new Thickness(6, 0, 0, 0),
             ToolTip = "Close tab"
         };
@@ -151,6 +155,8 @@ public partial class MainWindow : Window
         BrowserWorkspace.Visibility = Visibility.Visible;
         RestWorkspace.Visibility = Visibility.Collapsed;
         BookmarksWorkspace.Visibility = Visibility.Collapsed;
+        _footerWorkspace = FooterWorkspace.Browser;
+        UpdateFooterStatus();
     }
 
     private void ShowRestWorkspace_Click(object sender, RoutedEventArgs e)
@@ -159,6 +165,8 @@ public partial class MainWindow : Window
         RestWorkspace.Visibility = Visibility.Visible;
         BookmarksWorkspace.Visibility = Visibility.Collapsed;
         HideNetworkInspector();
+        _footerWorkspace = FooterWorkspace.Rest;
+        UpdateFooterStatus();
     }
 
     private async void ShowBookmarksWorkspace_Click(object sender, RoutedEventArgs e)
@@ -167,6 +175,8 @@ public partial class MainWindow : Window
         RestWorkspace.Visibility = Visibility.Collapsed;
         BookmarksWorkspace.Visibility = Visibility.Visible;
         HideNetworkInspector();
+        _footerWorkspace = FooterWorkspace.Bookmarks;
+        UpdateFooterStatus();
         await _bookmarkManager.RefreshAsync();
     }
 
@@ -186,6 +196,7 @@ public partial class MainWindow : Window
         UpdateLayout();
         var height = Math.Max(180, NetworkDrawerRow.ActualHeight);
         NetworkInspectorTranslate.BeginAnimation(TranslateTransform.YProperty, new DoubleAnimation(height, 0, TimeSpan.FromMilliseconds(180)) { EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut } });
+        UpdateFooterStatus();
     }
 
     private void HideNetworkInspector()
@@ -200,9 +211,70 @@ public partial class MainWindow : Window
             NetworkResizeRow.Height = new GridLength(0);
             NetworkDrawerRow.MinHeight = 0;
             NetworkDrawerRow.Height = new GridLength(0);
+            UpdateFooterStatus();
         };
         NetworkInspectorTranslate.BeginAnimation(TranslateTransform.YProperty, animation);
     }
+
+    private void NetworkRequests_CollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
+    {
+        if (e.NewItems is not null)
+            foreach (CapturedNetworkRequest request in e.NewItems) request.PropertyChanged += NetworkRequest_PropertyChanged;
+        if (e.OldItems is not null)
+            foreach (CapturedNetworkRequest request in e.OldItems) request.PropertyChanged -= NetworkRequest_PropertyChanged;
+        UpdateFooterStatus();
+    }
+
+    private void NetworkRequest_PropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName is nameof(CapturedNetworkRequest.IsFailed) or nameof(CapturedNetworkRequest.StatusCode) or nameof(CapturedNetworkRequest.DurationMs))
+            UpdateFooterStatus();
+    }
+
+    private void UpdateFooterStatus(RestClientFooterStatus? restStatus = null)
+    {
+        if (FooterPrimaryText is null) return;
+        if (_footerWorkspace == FooterWorkspace.Rest)
+        {
+            if (restStatus is null)
+            {
+                SetFooter("REST client", "Ready to send a request", "Press Enter in the URL field to send", Color.FromRgb(91, 214, 255));
+                return;
+            }
+
+            var color = restStatus.IsFailure ? Color.FromRgb(238, 103, 103) : restStatus.IsBusy ? Color.FromRgb(91, 214, 255) : Color.FromRgb(97, 208, 149);
+            SetFooter(restStatus.Primary, restStatus.Detail, restStatus.IsBusy ? "You can continue editing this request" : "Result is saved in the active request tab", color);
+            return;
+        }
+
+        if (_footerWorkspace == FooterWorkspace.Bookmarks)
+        {
+            SetFooter("Bookmarks library", "Stored locally on this device", "Search, organise, or open a saved page", Color.FromRgb(180, 192, 210));
+            return;
+        }
+
+        if (NetworkInspectorHost.Visibility == Visibility.Visible)
+        {
+            SetFooter("Network inspector open", "Live capture continues in the background", "Drag the divider above to resize", Color.FromRgb(91, 214, 255));
+            return;
+        }
+
+        var total = _networkCapture.Requests.Count;
+        var failures = _networkCapture.Requests.Count(request => request.IsFailed);
+        var detail = total == 0 ? "Waiting for page activity" : $"{total:N0} captured request{(total == 1 ? string.Empty : "s")}";
+        var hint = failures == 0 ? "Open Network inspector for details" : $"{failures:N0} failed request{(failures == 1 ? string.Empty : "s")} detected";
+        SetFooter("Network capture on", detail, hint, failures == 0 ? Color.FromRgb(97, 208, 149) : Color.FromRgb(238, 103, 103));
+    }
+
+    private void SetFooter(string primary, string detail, string hint, Color color)
+    {
+        FooterPrimaryText.Text = primary;
+        FooterDetailText.Text = detail;
+        FooterHintText.Text = hint;
+        FooterStatusIndicator.Fill = new SolidColorBrush(color);
+    }
+
+    private enum FooterWorkspace { Browser, Rest, Bookmarks }
 
     private void Back_Click(object sender, RoutedEventArgs e)
     {

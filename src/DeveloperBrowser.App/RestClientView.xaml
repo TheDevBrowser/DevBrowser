@@ -81,7 +81,8 @@
     <Grid Margin="28,22">
         <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions>
         <Grid Grid.Row="0" Margin="0,0,0,17"><Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
-            <StackPanel><TextBlock Text="REST WORKSPACE" Foreground="{StaticResource MutedTextBrush}" FontSize="12" FontWeight="SemiBold" /><TextBlock Text="Build, send, inspect." Foreground="{StaticResource PrimaryTextBrush}" FontSize="22" FontWeight="SemiBold" Margin="0,3,0,0" /></StackPanel>
+            <StackPanel><TextBlock Text="REST WORKSPACE" Foreground="{StaticResource MutedTextBrush}" FontSize="12" FontWeight="SemiBold" />
+            </StackPanel>
             <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center"><TextBlock Text="Local only" Foreground="{StaticResource MutedTextBrush}" FontSize="12" VerticalAlignment="Center" Margin="0,0,13,0" /><Button Content="Save request" Style="{StaticResource PrimaryButton}" Click="SaveRequest_Click" /></StackPanel>
         </Grid>
         <Border Grid.Row="1" Background="{StaticResource PanelBrush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="12" Margin="0,0,0,14">

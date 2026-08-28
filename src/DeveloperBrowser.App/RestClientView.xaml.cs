@@ -18,6 +18,8 @@ public partial class RestClientView : UserControl
     private RestRequestTab? _activeRequestTab;
     private bool _isRestoringTab;
 
+    public event EventHandler<RestClientFooterStatus>? FooterStatusChanged;
+
     public ObservableCollection<RequestField> Parameters { get; } = [new()];
     public ObservableCollection<RequestField> Headers { get; } = [new()];
 
@@ -56,6 +58,7 @@ public partial class RestClientView : UserControl
             StatusText.Text = "Sending";
             StatusBadge.Background = new SolidColorBrush(Color.FromRgb(46, 58, 80));
             ResponseMetaText.Text = "Waiting for server…";
+            SetFooterStatus("Sending request", "Waiting for the server", isBusy: true);
             var stopwatch = Stopwatch.StartNew();
             using var response = await _httpClient.SendAsync(request);
             stopwatch.Stop();
@@ -66,6 +69,7 @@ public partial class RestClientView : UserControl
             StatusText.Text = $"{(int)response.StatusCode} {response.ReasonPhrase}";
             StatusBadge.Background = new SolidColorBrush(response.IsSuccessStatusCode ? Color.FromRgb(29, 100, 70) : Color.FromRgb(128, 56, 64));
             ResponseMetaText.Text = $"{stopwatch.ElapsedMilliseconds} ms · {responseBody.Length:N0} B";
+            SetFooterStatus($"{request.Method} {(int)response.StatusCode}", ResponseMetaText.Text, isFailure: !response.IsSuccessStatusCode);
             CaptureActiveTab();
         }
         catch (Exception exception)
@@ -75,6 +79,7 @@ public partial class RestClientView : UserControl
             ResponseMetaText.Text = exception.GetType().Name;
             ResponseDataViewer.SetContent(exception.Message, "text/plain");
             ResponseHeadersBox.Text = string.Empty;
+            SetFooterStatus("Request failed", exception.GetType().Name, isFailure: true);
             CaptureActiveTab();
         }
     }
@@ -251,6 +256,9 @@ public partial class RestClientView : UserControl
 
     private void CopyResponse_Click(object sender, RoutedEventArgs e) => ResponseDataViewer.CopyFullContent();
 
+    private void SetFooterStatus(string primary, string detail, bool isFailure = false, bool isBusy = false) =>
+        FooterStatusChanged?.Invoke(this, new RestClientFooterStatus(primary, detail, isFailure, isBusy));
+
     public sealed class RequestField { public bool IsEnabled { get; set; } = true; public string Key { get; set; } = string.Empty; public string? Value { get; set; } public RequestField Clone() => new() { IsEnabled = IsEnabled, Key = Key, Value = Value }; }
 
     private sealed class RestRequestTab
@@ -275,3 +283,5 @@ public partial class RestClientView : UserControl
         public TextBlock? TitleText { get; set; }
     }
 }
+
+public sealed record RestClientFooterStatus(string Primary, string Detail, bool IsFailure, bool IsBusy);
