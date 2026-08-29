@@ -20,6 +20,8 @@ public partial class MainWindow : Window
     private readonly BookmarkManagerView _bookmarkManager;
     private BrowserTab? _activeTab;
     private double _networkDrawerHeight = 340;
+    private double _networkSideWidth = 440;
+    private NetworkInspectorDock _networkDock = NetworkInspectorDock.Bottom;
     private BookmarkItem? _editingBookmark;
     private FooterWorkspace _footerWorkspace = FooterWorkspace.Browser;
 
@@ -35,16 +37,24 @@ public partial class MainWindow : Window
         _bookmarkManager.Deleted += async (_, _) => { await UpdateBookmarkStateAsync(); };
         BookmarkManagerHost.Content = _bookmarkManager;
         NetworkInspector.Initialize(_networkCapture);
+        NetworkInspector.SetDock(_networkDock);
         _networkCapture.Requests.CollectionChanged += NetworkRequests_CollectionChanged;
         RestClientView.FooterStatusChanged += (_, status) =>
         {
             if (_footerWorkspace == FooterWorkspace.Rest) UpdateFooterStatus(status);
         };
         NetworkInspector.CloseRequested += (_, _) => HideNetworkInspector();
+        NetworkInspector.DockRequested += (_, dock) => SetNetworkDock(dock);
         NetworkInspector.OpenInRestClientRequested += (_, request) =>
         {
             RestClientView.OpenCapturedRequest(request);
             ShowRestWorkspace_Click(this, new RoutedEventArgs());
+        };
+        StorageInspector.JwtInspectionRequested += (_, token) =>
+        {
+            ShowBrowserWorkspace_Click(this, new RoutedEventArgs());
+            NetworkInspector.InspectJwtToken(token);
+            ShowNetworkInspector();
         };
         Loaded += async (_, _) =>
         {
@@ -79,6 +89,7 @@ public partial class MainWindow : Window
             {
                 AddressBar.Text = browser.Source.AbsoluteUri;
                 _ = UpdateBookmarkStateAsync();
+                if (StorageWorkspace.Visibility == Visibility.Visible) _ = StorageInspector.SetBrowserAsync(browser);
             }
         };
 
@@ -129,6 +140,7 @@ public partial class MainWindow : Window
             item.Header.Background = item == tab ? (Brush)FindResource("SurfaceBrush") : Brushes.Transparent;
         if (tab.Browser.Source is not null) AddressBar.Text = tab.Browser.Source.AbsoluteUri;
         _ = UpdateBookmarkStateAsync();
+        if (StorageWorkspace.Visibility == Visibility.Visible) _ = StorageInspector.SetBrowserAsync(tab.Browser);
     }
 
     private void CloseTab(BrowserTab tab)
@@ -155,6 +167,7 @@ public partial class MainWindow : Window
         BrowserWorkspace.Visibility = Visibility.Visible;
         RestWorkspace.Visibility = Visibility.Collapsed;
         BookmarksWorkspace.Visibility = Visibility.Collapsed;
+        StorageWorkspace.Visibility = Visibility.Collapsed;
         _footerWorkspace = FooterWorkspace.Browser;
         UpdateFooterStatus();
     }
@@ -164,6 +177,7 @@ public partial class MainWindow : Window
         BrowserWorkspace.Visibility = Visibility.Collapsed;
         RestWorkspace.Visibility = Visibility.Visible;
         BookmarksWorkspace.Visibility = Visibility.Collapsed;
+        StorageWorkspace.Visibility = Visibility.Collapsed;
         HideNetworkInspector();
         _footerWorkspace = FooterWorkspace.Rest;
         UpdateFooterStatus();
@@ -174,20 +188,48 @@ public partial class MainWindow : Window
         BrowserWorkspace.Visibility = Visibility.Collapsed;
         RestWorkspace.Visibility = Visibility.Collapsed;
         BookmarksWorkspace.Visibility = Visibility.Visible;
+        StorageWorkspace.Visibility = Visibility.Collapsed;
         HideNetworkInspector();
         _footerWorkspace = FooterWorkspace.Bookmarks;
         UpdateFooterStatus();
         await _bookmarkManager.RefreshAsync();
     }
 
+    private async void ShowStorageWorkspace_Click(object sender, RoutedEventArgs e)
+    {
+        BrowserWorkspace.Visibility = Visibility.Collapsed;
+        RestWorkspace.Visibility = Visibility.Collapsed;
+        BookmarksWorkspace.Visibility = Visibility.Collapsed;
+        StorageWorkspace.Visibility = Visibility.Visible;
+        HideNetworkInspector();
+        _footerWorkspace = FooterWorkspace.Storage;
+        UpdateFooterStatus();
+        await StorageInspector.SetBrowserAsync(_activeTab?.Browser);
+    }
+
     private void ToggleNetworkInspector_Click(object sender, RoutedEventArgs e)
     {
-        if (NetworkInspectorHost.Visibility == Visibility.Visible) HideNetworkInspector();
+        if (StorageWorkspace.Visibility == Visibility.Visible) ShowBrowserWorkspace_Click(this, new RoutedEventArgs());
+        if (IsNetworkInspectorVisible) HideNetworkInspector();
         else ShowNetworkInspector();
     }
 
     private void ShowNetworkInspector()
     {
+        if (_networkDock == NetworkInspectorDock.Right)
+        {
+            MoveNetworkInspectorTo(NetworkInspectorDock.Right);
+            NetworkSideSplitterColumn.Width = new GridLength(8);
+            NetworkSideColumn.Width = new GridLength(_networkSideWidth);
+            Grid.SetColumnSpan(BrowserWorkspace, 1);
+            NetworkSideSplitter.Width = 8;
+            NetworkSideSplitter.Visibility = Visibility.Visible;
+            NetworkInspectorSideHost.Visibility = Visibility.Visible;
+            UpdateFooterStatus();
+            return;
+        }
+
+        MoveNetworkInspectorTo(NetworkInspectorDock.Bottom);
         NetworkResizeRow.Height = new GridLength(8);
         NetworkDrawerRow.MinHeight = 180;
         NetworkDrawerRow.Height = new GridLength(_networkDrawerHeight);
@@ -201,6 +243,18 @@ public partial class MainWindow : Window
 
     private void HideNetworkInspector()
     {
+        if (NetworkInspectorSideHost.Visibility == Visibility.Visible)
+        {
+            if (NetworkSideColumn.ActualWidth >= 320) _networkSideWidth = NetworkSideColumn.ActualWidth;
+            NetworkInspectorSideHost.Visibility = Visibility.Collapsed;
+            NetworkSideSplitter.Visibility = Visibility.Collapsed;
+            NetworkSideSplitterColumn.Width = new GridLength(0);
+            NetworkSideColumn.Width = new GridLength(0);
+            Grid.SetColumnSpan(BrowserWorkspace, 3);
+            UpdateFooterStatus();
+            return;
+        }
+
         if (NetworkInspectorHost.Visibility != Visibility.Visible) return;
         if (NetworkDrawerRow.ActualHeight >= 180) _networkDrawerHeight = NetworkDrawerRow.ActualHeight;
         var animation = new DoubleAnimation(NetworkInspectorTranslate.Y, Math.Max(180, NetworkDrawerRow.ActualHeight), TimeSpan.FromMilliseconds(150)) { EasingFunction = new CubicEase { EasingMode = EasingMode.EaseIn } };
@@ -215,6 +269,50 @@ public partial class MainWindow : Window
         };
         NetworkInspectorTranslate.BeginAnimation(TranslateTransform.YProperty, animation);
     }
+
+    private void SetNetworkDock(NetworkInspectorDock dock)
+    {
+        if (_networkDock == dock) return;
+        var wasVisible = IsNetworkInspectorVisible;
+        if (wasVisible) HideNetworkInspectorImmediately();
+        _networkDock = dock;
+        NetworkInspector.SetDock(dock);
+        if (wasVisible) ShowNetworkInspector();
+        else UpdateFooterStatus();
+    }
+
+    private void MoveNetworkInspectorTo(NetworkInspectorDock dock)
+    {
+        if (dock == NetworkInspectorDock.Bottom)
+        {
+            if (NetworkInspectorSideContent.Content is not null) NetworkInspectorSideContent.Content = null;
+            if (!ReferenceEquals(NetworkInspectorBottomContent.Content, NetworkInspector)) NetworkInspectorBottomContent.Content = NetworkInspector;
+        }
+        else
+        {
+            if (NetworkInspectorBottomContent.Content is not null) NetworkInspectorBottomContent.Content = null;
+            if (!ReferenceEquals(NetworkInspectorSideContent.Content, NetworkInspector)) NetworkInspectorSideContent.Content = NetworkInspector;
+        }
+    }
+
+    private void HideNetworkInspectorImmediately()
+    {
+        NetworkInspectorTranslate.BeginAnimation(TranslateTransform.YProperty, null);
+        if (NetworkDrawerRow.ActualHeight >= 180) _networkDrawerHeight = NetworkDrawerRow.ActualHeight;
+        if (NetworkSideColumn.ActualWidth >= 320) _networkSideWidth = NetworkSideColumn.ActualWidth;
+        NetworkInspectorHost.Visibility = Visibility.Collapsed;
+        NetworkDrawerSplitter.Visibility = Visibility.Collapsed;
+        NetworkResizeRow.Height = new GridLength(0);
+        NetworkDrawerRow.MinHeight = 0;
+        NetworkDrawerRow.Height = new GridLength(0);
+        NetworkInspectorSideHost.Visibility = Visibility.Collapsed;
+        NetworkSideSplitter.Visibility = Visibility.Collapsed;
+        NetworkSideSplitterColumn.Width = new GridLength(0);
+        NetworkSideColumn.Width = new GridLength(0);
+        Grid.SetColumnSpan(BrowserWorkspace, 3);
+    }
+
+    private bool IsNetworkInspectorVisible => NetworkInspectorHost.Visibility == Visibility.Visible || NetworkInspectorSideHost.Visibility == Visibility.Visible;
 
     private void NetworkRequests_CollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
     {
@@ -253,9 +351,16 @@ public partial class MainWindow : Window
             return;
         }
 
-        if (NetworkInspectorHost.Visibility == Visibility.Visible)
+        if (_footerWorkspace == FooterWorkspace.Storage)
         {
-            SetFooter("Network inspector open", "Live capture continues in the background", "Drag the divider above to resize", Color.FromRgb(91, 214, 255));
+            SetFooter("Storage inspector", "Current origin state — no request history mixed in", "Refresh after making changes in the page", Color.FromRgb(180, 192, 210));
+            return;
+        }
+
+        if (IsNetworkInspectorVisible)
+        {
+            var dockHint = _networkDock == NetworkInspectorDock.Bottom ? "Drag the divider above to resize" : "Drag the divider to the left to resize";
+            SetFooter($"Network inspector docked {_networkDock.ToString().ToLowerInvariant()}", "Live capture continues in the background", dockHint, Color.FromRgb(91, 214, 255));
             return;
         }
 
@@ -274,7 +379,7 @@ public partial class MainWindow : Window
         FooterStatusIndicator.Fill = new SolidColorBrush(color);
     }
 
-    private enum FooterWorkspace { Browser, Rest, Bookmarks }
+    private enum FooterWorkspace { Browser, Rest, Bookmarks, Storage }
 
     private void Back_Click(object sender, RoutedEventArgs e)
     {

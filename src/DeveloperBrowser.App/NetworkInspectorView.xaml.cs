@@ -18,6 +18,7 @@ public partial class NetworkInspectorView : UserControl
 
     public event EventHandler<CapturedNetworkRequest>? OpenInRestClientRequested;
     public event EventHandler? CloseRequested;
+    public event EventHandler<NetworkInspectorDock>? DockRequested;
 
     public NetworkInspectorView() => InitializeComponent();
 
@@ -71,6 +72,39 @@ public partial class NetworkInspectorView : UserControl
     }
     private void Clear_Click(object sender, RoutedEventArgs e) { _capture?.Clear(); ClearDetail(); }
     private void Close_Click(object sender, RoutedEventArgs e) => CloseRequested?.Invoke(this, EventArgs.Empty);
+    private void DockBottom_Click(object sender, RoutedEventArgs e) => DockRequested?.Invoke(this, NetworkInspectorDock.Bottom);
+    private void DockRight_Click(object sender, RoutedEventArgs e) => DockRequested?.Invoke(this, NetworkInspectorDock.Right);
+
+    public void SetDock(NetworkInspectorDock dock)
+    {
+        DockBottomButton.Visibility = dock == NetworkInspectorDock.Bottom ? Visibility.Collapsed : Visibility.Visible;
+        DockRightButton.Visibility = dock == NetworkInspectorDock.Right ? Visibility.Collapsed : Visibility.Visible;
+
+        InspectorContentGrid.ColumnDefinitions.Clear();
+        InspectorContentGrid.RowDefinitions.Clear();
+        if (dock == NetworkInspectorDock.Bottom)
+        {
+            InspectorContentGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(58, GridUnitType.Star) });
+            InspectorContentGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(10) });
+            InspectorContentGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(42, GridUnitType.Star) });
+            Grid.SetRow(RequestListPanel, 0); Grid.SetColumn(RequestListPanel, 0);
+            Grid.SetRow(InspectorDetailSplitter, 0); Grid.SetColumn(InspectorDetailSplitter, 1);
+            Grid.SetRow(RequestDetailPanel, 0); Grid.SetColumn(RequestDetailPanel, 2);
+            InspectorDetailSplitter.ResizeDirection = GridResizeDirection.Columns;
+            InspectorDetailSplitter.Width = 10; InspectorDetailSplitter.Height = double.NaN;
+        }
+        else
+        {
+            InspectorContentGrid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(52, GridUnitType.Star), MinHeight = 160 });
+            InspectorContentGrid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(8) });
+            InspectorContentGrid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(48, GridUnitType.Star), MinHeight = 160 });
+            Grid.SetRow(RequestListPanel, 0); Grid.SetColumn(RequestListPanel, 0);
+            Grid.SetRow(InspectorDetailSplitter, 1); Grid.SetColumn(InspectorDetailSplitter, 0);
+            Grid.SetRow(RequestDetailPanel, 2); Grid.SetColumn(RequestDetailPanel, 0);
+            InspectorDetailSplitter.ResizeDirection = GridResizeDirection.Rows;
+            InspectorDetailSplitter.Width = double.NaN; InspectorDetailSplitter.Height = 8;
+        }
+    }
 
     private async void RequestList_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
@@ -131,6 +165,24 @@ public partial class NetworkInspectorView : UserControl
             return;
         }
 
+        ShowJwtInspection(inspection);
+    }
+
+    /// <summary>Displays a decoded storage JWT in the existing inspector UI without sending it anywhere.</summary>
+    public void InspectJwtToken(string token)
+    {
+        if (!JwtTokenInspector.TryInspectToken(token, out var inspection) || inspection is null)
+        {
+            ClearJwtDetail("The stored value is not a decodable JWT.");
+            JwtDetailTab.IsSelected = true;
+            return;
+        }
+
+        ShowJwtInspection(inspection);
+    }
+
+    private void ShowJwtInspection(JwtTokenInspection inspection)
+    {
         JwtTimeStatusText.Text = inspection.TimeStatus switch
         {
             JwtTimeStatus.Expired => "Expired",
@@ -244,3 +296,5 @@ public partial class NetworkInspectorView : UserControl
         }
     }
 }
+
+public enum NetworkInspectorDock { Bottom, Right }

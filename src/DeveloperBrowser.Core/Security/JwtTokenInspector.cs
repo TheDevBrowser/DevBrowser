@@ -16,6 +16,15 @@ public static class JwtTokenInspector
         inspection = null;
         if (!TryGetBearerToken(authorizationHeader, out var token)) return false;
 
+        return TryInspectToken(token, out inspection);
+    }
+
+    /// <summary>Decodes a raw JWT locally for trusted in-process callers such as browser storage inspection.</summary>
+    public static bool TryInspectToken(string? token, out JwtTokenInspection? inspection)
+    {
+        inspection = null;
+        if (string.IsNullOrWhiteSpace(token)) return false;
+
         var segments = token.Split('.');
         if (segments.Length != 3) return false;
 

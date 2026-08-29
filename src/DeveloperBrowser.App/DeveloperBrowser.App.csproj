@@ -19,6 +19,10 @@
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
     <TargetFramework>net9.0-windows</TargetFramework>
+    <AssemblyName>DevBrowser</AssemblyName>
+    <Product>DevBrowser</Product>
+    <Title>DevBrowser</Title>
+    <Description>A developer-focused browser and REST client.</Description>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <UseWPF>true</UseWPF>
