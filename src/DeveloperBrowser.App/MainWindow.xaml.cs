@@ -7,6 +7,7 @@ using System.Collections.Specialized;
 using System.ComponentModel;
 using DeveloperBrowser.Core.Browser;
 using DeveloperBrowser.Core.Bookmarks;
+using DeveloperBrowser.Core.Collections;
 using Microsoft.Web.WebView2.Wpf;
 
 namespace DeveloperBrowser.App;
@@ -25,11 +26,12 @@ public partial class MainWindow : Window
     private BookmarkItem? _editingBookmark;
     private FooterWorkspace _footerWorkspace = FooterWorkspace.Browser;
 
-    public MainWindow(IBookmarkService bookmarks, PageMetadataService pageMetadata)
+    public MainWindow(IBookmarkService bookmarks, PageMetadataService pageMetadata, ICollectionService collections, IEnvironmentService environments, IVariableResolver variables, ICollectionImportExportService collectionImportExport)
     {
         InitializeComponent();
         _bookmarks = bookmarks;
         _pageMetadata = pageMetadata;
+        RestClientView.Configure(collections, environments, variables, collectionImportExport);
         _bookmarkManager = new BookmarkManagerView(_bookmarks);
         _bookmarkManager.OpenRequested += async (_, bookmark) => await OpenBookmarkAsync(bookmark.Url, false);
         _bookmarkManager.OpenNewTabRequested += async (_, bookmark) => await OpenBookmarkAsync(bookmark.Url, true);
