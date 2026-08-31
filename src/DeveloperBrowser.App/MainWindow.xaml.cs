@@ -16,6 +16,7 @@ public partial class MainWindow : Window
 {
     private readonly List<BrowserTab> _tabs = [];
     private readonly NetworkCaptureService _networkCapture = new();
+    private readonly HarCaptureService _harCapture = new();
     private readonly IBookmarkService _bookmarks;
     private readonly PageMetadataService _pageMetadata;
     private readonly BookmarkManagerView _bookmarkManager;
@@ -40,6 +41,19 @@ public partial class MainWindow : Window
         BookmarkManagerHost.Content = _bookmarkManager;
         NetworkInspector.Initialize(_networkCapture);
         NetworkInspector.SetDock(_networkDock);
+        HarInspector.Initialize(_harCapture, () =>
+        {
+            if (_activeTab?.Browser.CoreWebView2 is not { } webView) return null;
+            var host = _activeTab.Browser.Source?.Host ?? "New tab";
+            var title = string.IsNullOrWhiteSpace(_activeTab.Title.Text) ? host : _activeTab.Title.Text;
+            return new HarCaptureTarget(webView, $"{title} — {host}");
+        });
+        _harCapture.Changed += (_, _) => UpdateFooterStatus();
+        HarInspector.OpenInRestClientRequested += (_, request) =>
+        {
+            RestClientView.OpenCapturedRequest(request);
+            ShowRestWorkspace_Click(this, new RoutedEventArgs());
+        };
         _networkCapture.Requests.CollectionChanged += NetworkRequests_CollectionChanged;
         RestClientView.FooterStatusChanged += (_, status) =>
         {
@@ -170,6 +184,7 @@ public partial class MainWindow : Window
         RestWorkspace.Visibility = Visibility.Collapsed;
         BookmarksWorkspace.Visibility = Visibility.Collapsed;
         StorageWorkspace.Visibility = Visibility.Collapsed;
+        HarWorkspace.Visibility = Visibility.Collapsed;
         _footerWorkspace = FooterWorkspace.Browser;
         UpdateFooterStatus();
     }
@@ -180,6 +195,7 @@ public partial class MainWindow : Window
         RestWorkspace.Visibility = Visibility.Visible;
         BookmarksWorkspace.Visibility = Visibility.Collapsed;
         StorageWorkspace.Visibility = Visibility.Collapsed;
+        HarWorkspace.Visibility = Visibility.Collapsed;
         HideNetworkInspector();
         _footerWorkspace = FooterWorkspace.Rest;
         UpdateFooterStatus();
@@ -191,6 +207,7 @@ public partial class MainWindow : Window
         RestWorkspace.Visibility = Visibility.Collapsed;
         BookmarksWorkspace.Visibility = Visibility.Visible;
         StorageWorkspace.Visibility = Visibility.Collapsed;
+        HarWorkspace.Visibility = Visibility.Collapsed;
         HideNetworkInspector();
         _footerWorkspace = FooterWorkspace.Bookmarks;
         UpdateFooterStatus();
@@ -203,15 +220,29 @@ public partial class MainWindow : Window
         RestWorkspace.Visibility = Visibility.Collapsed;
         BookmarksWorkspace.Visibility = Visibility.Collapsed;
         StorageWorkspace.Visibility = Visibility.Visible;
+        HarWorkspace.Visibility = Visibility.Collapsed;
         HideNetworkInspector();
         _footerWorkspace = FooterWorkspace.Storage;
         UpdateFooterStatus();
         await StorageInspector.SetBrowserAsync(_activeTab?.Browser);
     }
 
+    private void ShowHarWorkspace_Click(object sender, RoutedEventArgs e)
+    {
+        BrowserWorkspace.Visibility = Visibility.Collapsed;
+        RestWorkspace.Visibility = Visibility.Collapsed;
+        BookmarksWorkspace.Visibility = Visibility.Collapsed;
+        StorageWorkspace.Visibility = Visibility.Collapsed;
+        HarWorkspace.Visibility = Visibility.Visible;
+        HarInspector.RefreshActiveTab();
+        HideNetworkInspector();
+        _footerWorkspace = FooterWorkspace.Har;
+        UpdateFooterStatus();
+    }
+
     private void ToggleNetworkInspector_Click(object sender, RoutedEventArgs e)
     {
-        if (StorageWorkspace.Visibility == Visibility.Visible) ShowBrowserWorkspace_Click(this, new RoutedEventArgs());
+        if (StorageWorkspace.Visibility == Visibility.Visible || HarWorkspace.Visibility == Visibility.Visible) ShowBrowserWorkspace_Click(this, new RoutedEventArgs());
         if (IsNetworkInspectorVisible) HideNetworkInspector();
         else ShowNetworkInspector();
     }
@@ -359,6 +390,13 @@ public partial class MainWindow : Window
             return;
         }
 
+        if (_footerWorkspace == FooterWorkspace.Har)
+        {
+            var state = _harCapture.IsCapturing ? "Recording active browser tab" : _harCapture.Entries.Count == 0 ? "Ready to capture or open a HAR file" : $"{_harCapture.Entries.Count:N0} HAR request{(_harCapture.Entries.Count == 1 ? string.Empty : "s")}";
+            SetFooter("HAR inspector", state, _harCapture.IsCapturing ? "Stop & Inspect when you have reproduced the issue" : "Open requests in the REST client without executing them", _harCapture.IsCapturing ? Color.FromRgb(238, 103, 103) : Color.FromRgb(91, 214, 255));
+            return;
+        }
+
         if (IsNetworkInspectorVisible)
         {
             var dockHint = _networkDock == NetworkInspectorDock.Bottom ? "Drag the divider above to resize" : "Drag the divider to the left to resize";
@@ -381,7 +419,7 @@ public partial class MainWindow : Window
         FooterStatusIndicator.Fill = new SolidColorBrush(color);
     }
 
-    private enum FooterWorkspace { Browser, Rest, Bookmarks, Storage }
+    private enum FooterWorkspace { Browser, Rest, Bookmarks, Storage, Har }
 
     private void Back_Click(object sender, RoutedEventArgs e)
     {
