@@ -7,6 +7,8 @@ using DeveloperBrowser.Infrastructure.Rest;
 using DeveloperBrowser.Infrastructure.Security;
 using DeveloperBrowser.Core.Collections;
 using DeveloperBrowser.Infrastructure.Collections;
+using DeveloperBrowser.Core.History;
+using DeveloperBrowser.Infrastructure.History;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 namespace DeveloperBrowser.Infrastructure;
@@ -26,6 +28,7 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IEnvironmentService, LocalEnvironmentService>();
         services.AddSingleton<IVariableResolver, VariableResolver>();
         services.AddSingleton<ICollectionImportExportService, CollectionImportExportService>();
+        services.AddSingleton<IBrowsingHistoryService, SqliteBrowsingHistoryService>();
         return services;
     }
 }

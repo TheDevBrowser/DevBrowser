@@ -28,6 +28,17 @@
             <Setter Property="FontSize" Value="13" />
             <Setter Property="FontFamily" Value="Segoe UI" />
         </Style>
+        <Style x:Key="SearchInput" TargetType="{x:Type TextBox}">
+            <Setter Property="Foreground" Value="{StaticResource PrimaryTextBrush}" />
+            <Setter Property="Background" Value="{StaticResource SurfaceBrush}" />
+            <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="Height" Value="34" />
+            <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="{x:Type TextBox}"><Border x:Name="SearchSurface" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="7"><Grid><Path Data="M10,4A6,6 0,1 0,10,16A6,6 0,0 0,10,4M14.5,14.5L20,20" Stroke="#FF9FB0C5" StrokeThickness="1.6" StrokeStartLineCap="Round" StrokeEndLineCap="Round" Margin="10,0,0,0" HorizontalAlignment="Left" VerticalAlignment="Center" Width="20" Height="20" /><ScrollViewer x:Name="PART_ContentHost" Margin="39,0,10,0" VerticalContentAlignment="{TemplateBinding VerticalContentAlignment}" /><TextBlock x:Name="Watermark" Text="{TemplateBinding Tag}" Foreground="#FF8494A9" FontSize="12" VerticalAlignment="Center" Margin="39,0,10,0" IsHitTestVisible="False" Visibility="Collapsed" /></Grid></Border><ControlTemplate.Triggers><Trigger Property="Text" Value=""><Setter TargetName="Watermark" Property="Visibility" Value="Visible" /></Trigger><Trigger Property="IsMouseOver" Value="True"><Setter TargetName="SearchSurface" Property="BorderBrush" Value="#FF5A6A83" /></Trigger><Trigger Property="IsKeyboardFocused" Value="True"><Setter TargetName="SearchSurface" Property="BorderBrush" Value="{StaticResource AccentBrush}" /></Trigger></ControlTemplate.Triggers></ControlTemplate></Setter.Value></Setter>
+        </Style>
         <Style TargetType="{x:Type TextBlock}">
             <Setter Property="FontFamily" Value="Segoe UI" />
             <Setter Property="FontSize" Value="13" />

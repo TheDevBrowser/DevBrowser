@@ -2,6 +2,7 @@ using System.Windows;
 using System.IO;
 using DeveloperBrowser.Core.Bookmarks;
 using DeveloperBrowser.Core.Collections;
+using DeveloperBrowser.Core.History;
 using DeveloperBrowser.Infrastructure;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -19,7 +20,7 @@ public partial class App : Application
         var provider = services.BuildServiceProvider();
         var bookmarks = provider.GetRequiredService<IBookmarkService>();
         await bookmarks.InitializeAsync();
-        var window = new MainWindow(bookmarks, provider.GetRequiredService<PageMetadataService>(), provider.GetRequiredService<ICollectionService>(), provider.GetRequiredService<IEnvironmentService>(), provider.GetRequiredService<IVariableResolver>(), provider.GetRequiredService<ICollectionImportExportService>());
+        var window = new MainWindow(bookmarks, provider.GetRequiredService<IBrowsingHistoryService>(), provider.GetRequiredService<PageMetadataService>(), provider.GetRequiredService<ICollectionService>(), provider.GetRequiredService<IEnvironmentService>(), provider.GetRequiredService<IVariableResolver>(), provider.GetRequiredService<ICollectionImportExportService>());
         MainWindow = window;
         window.Show();
     }

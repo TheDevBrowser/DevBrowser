@@ -23,6 +23,8 @@ public partial class HarInspectorView : UserControl
     public HarInspectorView()
     {
         InitializeComponent();
+        SearchBox.Style = (Style)FindResource("SearchInput");
+        SearchBox.Tag = "Search URL…";
         _captureTimer.Tick += (_, _) => UpdateCaptureMetrics();
     }
 

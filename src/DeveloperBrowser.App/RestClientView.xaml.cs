@@ -76,6 +76,10 @@ public partial class RestClientView : UserControl
     public RestClientView()
     {
         InitializeComponent();
+        ApplySearchStyle(LibrarySearchBox, "Search collections and requests…");
+        ApplySearchStyle(EnvironmentSearchBox, "Search environments and variables…");
+        ApplySearchStyle(SaveLocationSearchBox, "Search collections and folders…");
+        ApplySearchStyle(EnvironmentManagerSearchBox, "Search environments…");
         DataContext = this;
         ConfigureEnvironmentManagerHeader();
         BuildEnvironmentVariableEditor();
@@ -391,7 +395,8 @@ public partial class RestClientView : UserControl
         sidebarGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
         sidebarGrid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
         sidebarGrid.Children.Add(new TextBlock { Text = "COLLECTIONS", Foreground = Brushes.White, FontSize = 12, FontWeight = FontWeights.SemiBold });
-        _collectionManagerSearchBox = new TextBox { Padding = new Thickness(9, 6, 9, 6), Margin = new Thickness(0, 13, 0, 8), ToolTip = "Search collections and requests" };
+        _collectionManagerSearchBox = new TextBox { Margin = new Thickness(0, 13, 0, 8), ToolTip = "Search collections and requests" };
+        ApplySearchStyle(_collectionManagerSearchBox, "Search collections and requests…");
         _collectionManagerSearchBox.TextChanged += (_, _) => ApplyCollectionManagerSearch();
         Grid.SetRow(_collectionManagerSearchBox, 1);
         sidebarGrid.Children.Add(_collectionManagerSearchBox);
@@ -455,6 +460,12 @@ public partial class RestClientView : UserControl
         button.Style = (Style)FindResource("StorageActionButton");
         button.Click += handler;
         return button;
+    }
+
+    private void ApplySearchStyle(TextBox box, string placeholder)
+    {
+        box.Style = (Style)FindResource("SearchInput");
+        box.Tag = placeholder;
     }
 
     private Grid CreateCollectionDialog()

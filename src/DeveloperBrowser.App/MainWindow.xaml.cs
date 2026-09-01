@@ -8,6 +8,7 @@ using System.ComponentModel;
 using DeveloperBrowser.Core.Browser;
 using DeveloperBrowser.Core.Bookmarks;
 using DeveloperBrowser.Core.Collections;
+using DeveloperBrowser.Core.History;
 using Microsoft.Web.WebView2.Wpf;
 
 namespace DeveloperBrowser.App;
@@ -18,8 +19,10 @@ public partial class MainWindow : Window
     private readonly NetworkCaptureService _networkCapture = new();
     private readonly HarCaptureService _harCapture = new();
     private readonly IBookmarkService _bookmarks;
+    private readonly IBrowsingHistoryService _history;
     private readonly PageMetadataService _pageMetadata;
     private readonly BookmarkManagerView _bookmarkManager;
+    private readonly BrowsingHistoryView _historyView;
     private BrowserTab? _activeTab;
     private double _networkDrawerHeight = 340;
     private double _networkSideWidth = 440;
@@ -27,10 +30,11 @@ public partial class MainWindow : Window
     private BookmarkItem? _editingBookmark;
     private FooterWorkspace _footerWorkspace = FooterWorkspace.Browser;
 
-    public MainWindow(IBookmarkService bookmarks, PageMetadataService pageMetadata, ICollectionService collections, IEnvironmentService environments, IVariableResolver variables, ICollectionImportExportService collectionImportExport)
+    public MainWindow(IBookmarkService bookmarks, IBrowsingHistoryService history, PageMetadataService pageMetadata, ICollectionService collections, IEnvironmentService environments, IVariableResolver variables, ICollectionImportExportService collectionImportExport)
     {
         InitializeComponent();
         _bookmarks = bookmarks;
+        _history = history;
         _pageMetadata = pageMetadata;
         RestClientView.Configure(collections, environments, variables, collectionImportExport);
         _bookmarkManager = new BookmarkManagerView(_bookmarks);
@@ -39,6 +43,9 @@ public partial class MainWindow : Window
         _bookmarkManager.EditRequested += async (_, bookmark) => await ShowBookmarkFlyoutAsync(bookmark);
         _bookmarkManager.Deleted += async (_, _) => { await UpdateBookmarkStateAsync(); };
         BookmarkManagerHost.Content = _bookmarkManager;
+        _historyView = new BrowsingHistoryView(_history);
+        _historyView.OpenRequested += async (_, item) => await OpenBookmarkAsync(item.Url, false);
+        BrowsingHistoryHost.Content = _historyView;
         NetworkInspector.Initialize(_networkCapture);
         NetworkInspector.SetDock(_networkDock);
         HarInspector.Initialize(_harCapture, () =>
@@ -80,7 +87,7 @@ public partial class MainWindow : Window
         UpdateFooterStatus();
     }
 
-    private async Task CreateTabAsync(string? address = null)
+    private async Task<BrowserTab> CreateTabAsync(string? address = null, bool navigate = true)
     {
         var browser = new WebView2();
         var title = new TextBlock
@@ -107,6 +114,7 @@ public partial class MainWindow : Window
                 _ = UpdateBookmarkStateAsync();
                 if (StorageWorkspace.Visibility == Visibility.Visible) _ = StorageInspector.SetBrowserAsync(browser);
             }
+            _ = _history.RecordAsync(title.Text, browser.Source.AbsoluteUri);
         };
 
         SelectTab(tab);
@@ -115,9 +123,30 @@ public partial class MainWindow : Window
         {
             if (!string.IsNullOrWhiteSpace(browser.CoreWebView2.DocumentTitle)) title.Text = browser.CoreWebView2.DocumentTitle;
         };
+        browser.CoreWebView2.NewWindowRequested += async (_, args) =>
+        {
+            var deferral = args.GetDeferral();
+            try
+            {
+                var popupTab = await CreateTabAsync(navigate: false);
+                args.NewWindow = popupTab.Browser.CoreWebView2;
+                args.Handled = true;
+                SelectTab(popupTab);
+            }
+            catch
+            {
+                // Keep a failed popup request inside DevBrowser rather than letting Chromium open a separate window.
+                args.Handled = true;
+            }
+            finally
+            {
+                deferral.Complete();
+            }
+        };
         await browser.CoreWebView2.AddScriptToExecuteOnDocumentCreatedAsync(BrowserInstrumentation.ConsoleForwarderScript);
         await _networkCapture.AttachAsync(browser.CoreWebView2);
-        browser.Source = ToAddress(address ?? "https://www.google.com");
+        if (navigate) browser.Source = ToAddress(address ?? "https://www.google.com");
+        return tab;
     }
 
     private Border CreateTabHeader(BrowserTab tab)
@@ -185,6 +214,7 @@ public partial class MainWindow : Window
         BookmarksWorkspace.Visibility = Visibility.Collapsed;
         StorageWorkspace.Visibility = Visibility.Collapsed;
         HarWorkspace.Visibility = Visibility.Collapsed;
+        HistoryWorkspace.Visibility = Visibility.Collapsed;
         _footerWorkspace = FooterWorkspace.Browser;
         UpdateFooterStatus();
     }
@@ -196,6 +226,7 @@ public partial class MainWindow : Window
         BookmarksWorkspace.Visibility = Visibility.Collapsed;
         StorageWorkspace.Visibility = Visibility.Collapsed;
         HarWorkspace.Visibility = Visibility.Collapsed;
+        HistoryWorkspace.Visibility = Visibility.Collapsed;
         HideNetworkInspector();
         _footerWorkspace = FooterWorkspace.Rest;
         UpdateFooterStatus();
@@ -208,6 +239,7 @@ public partial class MainWindow : Window
         BookmarksWorkspace.Visibility = Visibility.Visible;
         StorageWorkspace.Visibility = Visibility.Collapsed;
         HarWorkspace.Visibility = Visibility.Collapsed;
+        HistoryWorkspace.Visibility = Visibility.Collapsed;
         HideNetworkInspector();
         _footerWorkspace = FooterWorkspace.Bookmarks;
         UpdateFooterStatus();
@@ -221,6 +253,7 @@ public partial class MainWindow : Window
         BookmarksWorkspace.Visibility = Visibility.Collapsed;
         StorageWorkspace.Visibility = Visibility.Visible;
         HarWorkspace.Visibility = Visibility.Collapsed;
+        HistoryWorkspace.Visibility = Visibility.Collapsed;
         HideNetworkInspector();
         _footerWorkspace = FooterWorkspace.Storage;
         UpdateFooterStatus();
@@ -234,10 +267,38 @@ public partial class MainWindow : Window
         BookmarksWorkspace.Visibility = Visibility.Collapsed;
         StorageWorkspace.Visibility = Visibility.Collapsed;
         HarWorkspace.Visibility = Visibility.Visible;
+        HistoryWorkspace.Visibility = Visibility.Collapsed;
         HarInspector.RefreshActiveTab();
         HideNetworkInspector();
         _footerWorkspace = FooterWorkspace.Har;
         UpdateFooterStatus();
+    }
+
+    private async void ShowHistoryWorkspace_Click(object sender, RoutedEventArgs e)
+    {
+        BrowserWorkspace.Visibility = Visibility.Collapsed;
+        RestWorkspace.Visibility = Visibility.Collapsed;
+        BookmarksWorkspace.Visibility = Visibility.Collapsed;
+        StorageWorkspace.Visibility = Visibility.Collapsed;
+        HarWorkspace.Visibility = Visibility.Collapsed;
+        HistoryWorkspace.Visibility = Visibility.Visible;
+        HideNetworkInspector();
+        _footerWorkspace = FooterWorkspace.History;
+        UpdateFooterStatus();
+        await _historyView.RefreshAsync();
+    }
+
+    private void MoreMenu_Click(object sender, RoutedEventArgs e)
+    {
+        var menu = new ContextMenu { PlacementTarget = MoreMenuButton, Placement = System.Windows.Controls.Primitives.PlacementMode.Bottom, Style = (Style)FindResource("MoreMenuStyle") };
+        var bookmarks = new MenuItem { Header = "Bookmarks", Style = (Style)FindResource("MoreMenuItemStyle") };
+        bookmarks.Click += (_, _) => ShowBookmarksWorkspace_Click(this, new RoutedEventArgs());
+        var history = new MenuItem { Header = "History", Style = (Style)FindResource("MoreMenuItemStyle") };
+        history.Click += (_, _) => ShowHistoryWorkspace_Click(this, new RoutedEventArgs());
+        var about = new MenuItem { Header = "About DevBrowser", Style = (Style)FindResource("MoreMenuItemStyle") };
+        about.Click += (_, _) => MessageBox.Show("DevBrowser\nA developer-focused browser with built-in network, HAR, storage, and REST tooling.\n\nVersion 1.0", "About DevBrowser", MessageBoxButton.OK, MessageBoxImage.Information);
+        menu.Items.Add(bookmarks); menu.Items.Add(history); menu.Items.Add(new Separator { Style = (Style)FindResource("MoreMenuSeparatorStyle") }); menu.Items.Add(about);
+        menu.IsOpen = true;
     }
 
     private void ToggleNetworkInspector_Click(object sender, RoutedEventArgs e)
@@ -397,6 +458,12 @@ public partial class MainWindow : Window
             return;
         }
 
+        if (_footerWorkspace == FooterWorkspace.History)
+        {
+            SetFooter("Browsing history", "Keeps the last 30 days locally", "Use the menu to clear it at any time", Color.FromRgb(180, 192, 210));
+            return;
+        }
+
         if (IsNetworkInspectorVisible)
         {
             var dockHint = _networkDock == NetworkInspectorDock.Bottom ? "Drag the divider above to resize" : "Drag the divider to the left to resize";
@@ -419,7 +486,7 @@ public partial class MainWindow : Window
         FooterStatusIndicator.Fill = new SolidColorBrush(color);
     }
 
-    private enum FooterWorkspace { Browser, Rest, Bookmarks, Storage, Har }
+    private enum FooterWorkspace { Browser, Rest, Bookmarks, Storage, Har, History }
 
     private void Back_Click(object sender, RoutedEventArgs e)
     {
