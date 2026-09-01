@@ -74,6 +74,55 @@
             <Setter Property="Cursor" Value="Hand" />
             <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="Button"><Border x:Name="ColorDot" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="20"><Border.Effect><DropShadowEffect BlurRadius="5" ShadowDepth="0" Opacity="0.25" /></Border.Effect></Border><ControlTemplate.Triggers><Trigger Property="IsMouseOver" Value="True"><Setter TargetName="ColorDot" Property="BorderBrush" Value="#FFF7F9FC" /></Trigger></ControlTemplate.Triggers></ControlTemplate></Setter.Value></Setter>
         </Style>
+        <Style x:Key="CollectionTreeContextMenu" TargetType="ContextMenu">
+            <Setter Property="Background" Value="#FF1A2230" />
+            <Setter Property="BorderBrush" Value="#FF50647F" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Padding" Value="5" />
+            <Setter Property="HasDropShadow" Value="True" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ContextMenu">
+                        <Border Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="8" Padding="{TemplateBinding Padding}">
+                            <ItemsPresenter />
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        <Style x:Key="CollectionTreeContextMenuItem" TargetType="MenuItem">
+            <Setter Property="Foreground" Value="#FFE8F0FA" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="MinWidth" Value="174" />
+            <Setter Property="Padding" Value="12,8" />
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="MenuItem">
+                        <Border x:Name="ItemSurface" Background="{TemplateBinding Background}" CornerRadius="5" Padding="{TemplateBinding Padding}">
+                            <ContentPresenter ContentSource="Header" TextElement.Foreground="{TemplateBinding Foreground}" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsHighlighted" Value="True">
+                                <Setter TargetName="ItemSurface" Property="Background" Value="#FF2A3B54" />
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Opacity" Value="0.5" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        <Style x:Key="CollectionTreeContextMenuSeparator" TargetType="Separator">
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Separator">
+                        <Border Height="1" Background="#FF35465E" Margin="8,5" />
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
         <Style x:Key="WorkspaceTabs" TargetType="TabControl"><Setter Property="Background" Value="#FF151D29" /><Setter Property="BorderBrush" Value="#FF35445B" /><Setter Property="BorderThickness" Value="1" /><Setter Property="Padding" Value="4" /><Setter Property="Template"><Setter.Value><ControlTemplate TargetType="TabControl"><Border Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="8"><TabPanel x:Name="HeaderPanel" IsItemsHost="True" /></Border></ControlTemplate></Setter.Value></Setter></Style>
         <Style x:Key="WorkspaceTab" TargetType="TabItem"><Setter Property="Foreground" Value="#FFB8C5D6" /><Setter Property="Background" Value="Transparent" /><Setter Property="BorderBrush" Value="Transparent" /><Setter Property="BorderThickness" Value="1" /><Setter Property="Padding" Value="18,9" /><Setter Property="Margin" Value="0" /><Setter Property="FontSize" Value="12" /><Setter Property="FontWeight" Value="SemiBold" /><Setter Property="Template"><Setter.Value><ControlTemplate TargetType="TabItem"><Border x:Name="TabSurface" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="6"><Grid><ContentPresenter ContentSource="Header" Margin="{TemplateBinding Padding}" HorizontalAlignment="Center" VerticalAlignment="Center" /><Border x:Name="SelectedLine" Background="#FFFD7A4C" Height="2" VerticalAlignment="Bottom" Visibility="Collapsed" CornerRadius="2" /></Grid></Border><ControlTemplate.Triggers><Trigger Property="IsMouseOver" Value="True"><Setter TargetName="TabSurface" Property="Background" Value="#FF263246" /><Setter TargetName="TabSurface" Property="BorderBrush" Value="#FF425572" /><Setter Property="Foreground" Value="#FFF7F9FC" /></Trigger><Trigger Property="IsSelected" Value="True"><Setter TargetName="TabSurface" Property="Background" Value="#FF202D40" /><Setter TargetName="TabSurface" Property="BorderBrush" Value="#FF4A607D" /><Setter TargetName="SelectedLine" Property="Visibility" Value="Visible" /><Setter Property="Foreground" Value="#FFFFFFFF" /></Trigger></ControlTemplate.Triggers></ControlTemplate></Setter.Value></Setter></Style>
         <Style TargetType="DataGrid">
@@ -89,6 +138,27 @@
         </Style>
         <Style TargetType="DataGridColumnHeader"><Setter Property="Background" Value="{StaticResource PanelBrush}" /><Setter Property="Foreground" Value="{StaticResource MutedTextBrush}" /><Setter Property="BorderBrush" Value="{StaticResource BorderBrush}" /><Setter Property="Padding" Value="9,8" /><Setter Property="FontSize" Value="11" /></Style>
         <Style TargetType="DataGridCell"><Setter Property="Padding" Value="10,7" /><Setter Property="BorderBrush" Value="{StaticResource BorderBrush}" /></Style>
+        <Style x:Key="RequestGridCheckBox" TargetType="CheckBox">
+            <Setter Property="Width" Value="18" />
+            <Setter Property="Height" Value="18" />
+            <Setter Property="HorizontalAlignment" Value="Center" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="CheckBox">
+                        <Border x:Name="Box" Background="#FF202735" BorderBrush="#FF52647D" BorderThickness="1" CornerRadius="4">
+                            <Path x:Name="Tick" Data="M4,9 L7.3,12.2 L14,5.7" Stroke="#FFFFFFFF" StrokeThickness="2" StrokeStartLineCap="Round" StrokeEndLineCap="Round" Visibility="Collapsed" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Box" Property="BorderBrush" Value="#FF77A7E8" /><Setter TargetName="Box" Property="Background" Value="#FF29384C" /></Trigger>
+                            <Trigger Property="IsChecked" Value="True"><Setter TargetName="Box" Property="Background" Value="{StaticResource AccentBrush}" /><Setter TargetName="Box" Property="BorderBrush" Value="{StaticResource AccentBrush}" /><Setter TargetName="Tick" Property="Visibility" Value="Visible" /></Trigger>
+                            <Trigger Property="IsEnabled" Value="False"><Setter TargetName="Box" Property="Opacity" Value="0.45" /></Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
     </UserControl.Resources>
     <Grid Margin="28,22">
         <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions>
@@ -116,8 +186,8 @@
                 <Grid><Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions>
                     <TextBlock Text="REQUEST" Foreground="{StaticResource MutedTextBrush}" FontSize="12" FontWeight="SemiBold" Margin="3,1,0,0" />
                     <TabControl Grid.Row="1" Margin="4,16,0,0">
-                        <TabItem Header="Params" Margin="0,0,-9,0"><Grid Margin="0,14,0,0"><Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions><DockPanel Margin="0,0,0,10"><Button DockPanel.Dock="Right" Content="+ Add parameter" Style="{StaticResource PrimaryButton}" Click="AddParameter_Click" /><TextBlock Text="Query parameters" Foreground="{StaticResource PrimaryTextBrush}" FontSize="12" FontWeight="SemiBold" VerticalAlignment="Center" /></DockPanel><DataGrid Grid.Row="1" ItemsSource="{Binding Parameters}" AutoGenerateColumns="False" CanUserAddRows="False"><DataGrid.Columns><DataGridCheckBoxColumn Header="On" Binding="{Binding IsEnabled}" Width="45" /><DataGridTextColumn Header="Key" Binding="{Binding Key}" Width="*" /><DataGridTextColumn Header="Value" Binding="{Binding Value}" Width="*" /></DataGrid.Columns></DataGrid></Grid></TabItem>
-                        <TabItem Header="Headers" Margin="0,0,-7,0"><Grid Margin="0,12,0,0"><Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions><Button Content="+ Add header" Style="{StaticResource PrimaryButton}" HorizontalAlignment="Left" Click="AddHeader_Click" /><DataGrid Grid.Row="1" Margin="0,12,0,0" ItemsSource="{Binding Headers}" AutoGenerateColumns="False" CanUserAddRows="False"><DataGrid.Columns><DataGridCheckBoxColumn Header="On" Binding="{Binding IsEnabled}" Width="45" /><DataGridTextColumn Header="Name" Binding="{Binding Key}" Width="*" /><DataGridTextColumn Header="Value" Binding="{Binding Value}" Width="*" /></DataGrid.Columns></DataGrid></Grid></TabItem>
+                        <TabItem Header="Params" Margin="0,0,-9,0"><Grid Margin="0,14,0,0"><Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions><DockPanel Margin="0,0,0,10"><Button DockPanel.Dock="Right" Content="+ Add parameter" Style="{StaticResource PrimaryButton}" Click="AddParameter_Click" /><TextBlock Text="Query parameters" Foreground="{StaticResource PrimaryTextBrush}" FontSize="12" FontWeight="SemiBold" VerticalAlignment="Center" /></DockPanel><DataGrid Grid.Row="1" ItemsSource="{Binding Parameters}" AutoGenerateColumns="False" CanUserAddRows="False" RowHeight="36" MinRowHeight="36"><DataGrid.Columns><DataGridCheckBoxColumn Header="On" Binding="{Binding IsEnabled}" Width="45" ElementStyle="{StaticResource RequestGridCheckBox}" EditingElementStyle="{StaticResource RequestGridCheckBox}" /><DataGridTextColumn Header="Key" Binding="{Binding Key}" Width="*" /><DataGridTextColumn Header="Value" Binding="{Binding Value}" Width="*" /></DataGrid.Columns></DataGrid></Grid></TabItem>
+                        <TabItem Header="Headers" Margin="0,0,-7,0"><Grid Margin="0,12,0,0"><Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions><Button Content="+ Add header" Style="{StaticResource PrimaryButton}" HorizontalAlignment="Left" Click="AddHeader_Click" /><DataGrid Grid.Row="1" Margin="0,12,0,0" ItemsSource="{Binding Headers}" AutoGenerateColumns="False" CanUserAddRows="False" RowHeight="36" MinRowHeight="36"><DataGrid.Columns><DataGridCheckBoxColumn Header="On" Binding="{Binding IsEnabled}" Width="45" ElementStyle="{StaticResource RequestGridCheckBox}" EditingElementStyle="{StaticResource RequestGridCheckBox}" /><DataGridTextColumn Header="Name" Binding="{Binding Key}" Width="*" /><DataGridTextColumn Header="Value" Binding="{Binding Value}" Width="*" /></DataGrid.Columns></DataGrid></Grid></TabItem>
                         <TabItem Header="Body" Margin="0,0,-3,0"><Grid Margin="0,12,0,0"><Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions><DockPanel><TextBlock Text="Content type" Foreground="{StaticResource MutedTextBrush}" FontSize="12" VerticalAlignment="Center" Margin="0,0,8,0" /><ComboBox x:Name="ContentTypeBox" Width="180" SelectedIndex="0"><ComboBoxItem Content="application/json" /><ComboBoxItem Content="text/plain" /><ComboBoxItem Content="application/xml" /></ComboBox></DockPanel><TabControl Grid.Row="1" Margin="0,14,0,0" Style="{StaticResource RequestBodyModeTabs}"><TabItem Header="Raw" Style="{StaticResource RequestBodyModeTab}"><TextBox x:Name="BodyBox" Margin="0,4,0,0" AcceptsReturn="True" TextWrapping="NoWrap" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto" FontFamily="Cascadia Mono" TextChanged="BodyBox_TextChanged" /></TabItem><TabItem Header="Tree" Style="{StaticResource RequestBodyModeTab}"><local:JsonTreeView x:Name="RequestJsonTree" Margin="0,4,0,0" /></TabItem></TabControl></Grid></TabItem>
                         <TabItem Header="Auth" Margin="0,0,-5,0">
                             <StackPanel Margin="0,16,0,0" Width="360" HorizontalAlignment="Left">

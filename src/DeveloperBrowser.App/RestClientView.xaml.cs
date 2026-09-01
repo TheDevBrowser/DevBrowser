@@ -733,20 +733,26 @@ public partial class RestClientView : UserControl
     private void CollectionNodeMenu_Click(object sender, MouseButtonEventArgs e)
     {
         if (sender is not FrameworkElement { Tag: CollectionTreeNode node } button) return;
-        var menu = new ContextMenu { PlacementTarget = button };
-        var addFolder = new MenuItem { Header = node.IsCollection ? "Add folder" : "Add subfolder" };
+        var menuItemStyle = (Style)FindResource("CollectionTreeContextMenuItem");
+        var separatorStyle = (Style)FindResource("CollectionTreeContextMenuSeparator");
+        var menu = new ContextMenu
+        {
+            PlacementTarget = button,
+            Style = (Style)FindResource("CollectionTreeContextMenu")
+        };
+        var addFolder = new MenuItem { Header = node.IsCollection ? "Add folder" : "Add subfolder", Style = menuItemStyle };
         addFolder.Click += (_, _) => OpenFolderDialog(node.Collection, node.Folder, null);
-        var addRequest = new MenuItem { Header = "Add request" };
+        var addRequest = new MenuItem { Header = "Add request", Style = menuItemStyle };
         addRequest.Click += (_, _) => AddRequestFromMenu(node);
-        var rename = new MenuItem { Header = "Rename" };
+        var rename = new MenuItem { Header = "Rename", Style = menuItemStyle };
         rename.Click += (_, _) =>
         {
             if (node.IsCollection) OpenCollectionDialog(node.Collection);
             else OpenFolderDialog(node.Collection, node.Folder, node.Folder);
         };
-        var delete = new MenuItem { Header = "Delete" };
+        var delete = new MenuItem { Header = "Delete", Style = menuItemStyle, Foreground = new SolidColorBrush(Color.FromRgb(255, 177, 177)) };
         delete.Click += async (_, _) => await DeleteNodeFromMenuAsync(node);
-        menu.Items.Add(addFolder); menu.Items.Add(addRequest); menu.Items.Add(new Separator()); menu.Items.Add(rename); menu.Items.Add(new Separator()); menu.Items.Add(delete);
+        menu.Items.Add(addFolder); menu.Items.Add(addRequest); menu.Items.Add(new Separator { Style = separatorStyle }); menu.Items.Add(rename); menu.Items.Add(new Separator { Style = separatorStyle }); menu.Items.Add(delete);
         menu.IsOpen = true;
         e.Handled = true;
     }

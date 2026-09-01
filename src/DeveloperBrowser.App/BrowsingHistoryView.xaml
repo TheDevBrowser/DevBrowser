@@ -1,9 +1,98 @@
 <UserControl x:Class="DeveloperBrowser.App.BrowsingHistoryView"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
-    <Grid Background="{StaticResource CanvasBrush}" Margin="26">
-        <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions>
-        <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions><StackPanel><TextBlock Text="BROWSING HISTORY" Foreground="{StaticResource AccentBrush}" FontSize="11" FontWeight="SemiBold" /><TextBlock Text="Last 30 days" Foreground="{StaticResource PrimaryTextBrush}" FontSize="22" FontWeight="SemiBold" Margin="0,4,0,0" /><TextBlock Text="Stored locally on this device. Revisiting a page updates its latest visit." Foreground="{StaticResource MutedTextBrush}" FontSize="11" Margin="0,5,0,0" /></StackPanel><Button Grid.Column="1" Content="Clear history" Style="{StaticResource PrimaryButton}" Background="#FF8B3943" BorderBrush="#FFEE7780" VerticalAlignment="Center" Click="Clear_Click" /></Grid>
-        <Border Grid.Row="1" Background="#FF182231" BorderBrush="#FF3A4960" BorderThickness="1" CornerRadius="10" Margin="0,20,0,0" Padding="10"><Grid><ListBox x:Name="HistoryList" Background="Transparent" BorderThickness="0" SelectionChanged="HistoryList_SelectionChanged"><ListBox.ItemTemplate><DataTemplate><Border BorderBrush="#FF2F3E52" BorderThickness="0,0,0,1" Padding="11,10"><Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions><StackPanel><TextBlock Text="{Binding Title}" Foreground="{StaticResource PrimaryTextBrush}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" /><TextBlock Text="{Binding Url}" Foreground="{StaticResource MutedTextBrush}" FontSize="11" Margin="0,3,0,0" TextTrimming="CharacterEllipsis" /></StackPanel><StackPanel Grid.Column="1" HorizontalAlignment="Right"><TextBlock Text="{Binding LastVisitedAt, StringFormat={}{0:g}}" Foreground="{StaticResource MutedTextBrush}" FontSize="11" HorizontalAlignment="Right" /><TextBlock Text="{Binding VisitCount, StringFormat={}{0} visits}" Foreground="#FF91C9F7" FontSize="10" HorizontalAlignment="Right" Margin="0,4,0,0" /></StackPanel></Grid></Border></DataTemplate></ListBox.ItemTemplate></ListBox><TextBlock x:Name="EmptyText" Text="No browsing history yet." Foreground="{StaticResource MutedTextBrush}" HorizontalAlignment="Center" VerticalAlignment="Center" Visibility="Collapsed" /></Grid></Border>
+    <UserControl.Resources>
+        <Style x:Key="HistoryRow" TargetType="ListBoxItem">
+            <Setter Property="Foreground" Value="{StaticResource PrimaryTextBrush}" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="Margin" Value="0" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ListBoxItem">
+                        <Border x:Name="RowSurface" Background="{TemplateBinding Background}" BorderBrush="#FF2D3D53" BorderThickness="0,0,0,1" Padding="12,11">
+                            <ContentPresenter />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="RowSurface" Property="Background" Value="#FF213047" />
+                                <Setter TargetName="RowSurface" Property="BorderBrush" Value="#FF4A678A" />
+                            </Trigger>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter TargetName="RowSurface" Property="Background" Value="#FF193753" />
+                                <Setter TargetName="RowSurface" Property="BorderBrush" Value="{StaticResource AccentBrush}" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        <Style x:Key="HistoryTag" TargetType="Border">
+            <Setter Property="Background" Value="#FF202D40" />
+            <Setter Property="BorderBrush" Value="#FF40546F" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="8" />
+            <Setter Property="Padding" Value="9,5" />
+            <Setter Property="Margin" Value="0,0,7,0" />
+        </Style>
+    </UserControl.Resources>
+    <Grid Background="{StaticResource CanvasBrush}" Margin="30,27">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <Grid>
+            <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+            <StackPanel>
+                <TextBlock Text="BROWSING HISTORY" Foreground="{StaticResource AccentBrush}" FontSize="11" FontWeight="SemiBold" />
+                <DockPanel Margin="0,4,0,0">
+                    <TextBlock Text="Your recent browsing" Foreground="{StaticResource PrimaryTextBrush}" FontSize="22" FontWeight="SemiBold" DockPanel.Dock="Left" />
+                    <StackPanel Orientation="Horizontal" Margin="16,1,0,0">
+                        <Border Style="{StaticResource HistoryTag}"><StackPanel Orientation="Horizontal"><Viewbox Width="13" Height="13"><Path Data="M12,3A9,9 0 1,0 20,12H17.5A6.5,6.5 0 1,1 12,5.5V9L17,4L12,0V3Z" Fill="{StaticResource AccentBrush}" /></Viewbox><TextBlock Text="30 days" Foreground="#FFD6E5F8" FontSize="11" Margin="5,0,0,0" /></StackPanel></Border>
+                        <Border Style="{StaticResource HistoryTag}"><StackPanel Orientation="Horizontal"><Viewbox Width="13" Height="13"><Path Data="M12,2A5,5 0 0,0 7,7V10H5V21H19V10H17V7A5,5 0 0,0 12,2M9,10V7A3,3 0 0,1 15,7V10H9M8,13H16V18H8V13Z" Fill="#FF8CB8EA" /></Viewbox><TextBlock Text="Stored locally" Foreground="#FFD6E5F8" FontSize="11" Margin="5,0,0,0" /></StackPanel></Border>
+                    </StackPanel>
+                </DockPanel>
+                <TextBlock Text="Select a page to reopen it. Revisiting a page updates its latest visit and count." Foreground="{StaticResource MutedTextBrush}" FontSize="11" Margin="0,6,0,0" />
+            </StackPanel>
+            <Button Grid.Column="1" Content="Clear history" Style="{StaticResource PrimaryButton}" Background="#FF8B3943" BorderBrush="#FFEE7780" VerticalAlignment="Center" Click="Clear_Click" />
+        </Grid>
+
+        <Border Grid.Row="1" Background="#FF182231" BorderBrush="#FF3A4960" BorderThickness="1" CornerRadius="12" Margin="0,22,0,0" Padding="8">
+            <Grid>
+                <Grid.RowDefinitions><RowDefinition Height="39" /><RowDefinition Height="*" /></Grid.RowDefinitions>
+                <Grid Margin="12,0,12,0">
+                    <Grid.ColumnDefinitions><ColumnDefinition Width="42" /><ColumnDefinition Width="*" /><ColumnDefinition Width="170" /><ColumnDefinition Width="88" /></Grid.ColumnDefinitions>
+                    <TextBlock Grid.Column="1" Text="PAGE" Foreground="#FF9DAFC7" FontSize="10" FontWeight="SemiBold" VerticalAlignment="Center" />
+                    <TextBlock Grid.Column="2" Text="LAST VISITED" Foreground="#FF9DAFC7" FontSize="10" FontWeight="SemiBold" VerticalAlignment="Center" />
+                    <TextBlock Grid.Column="3" Text="VISITS" Foreground="#FF9DAFC7" FontSize="10" FontWeight="SemiBold" VerticalAlignment="Center" HorizontalAlignment="Center" />
+                </Grid>
+                <ListBox x:Name="HistoryList" Grid.Row="1" Background="Transparent" BorderThickness="0" ItemContainerStyle="{StaticResource HistoryRow}" SelectionChanged="HistoryList_SelectionChanged" ToolTip="Select a row to open that page">
+                    <ListBox.ItemTemplate>
+                        <DataTemplate>
+                            <Grid>
+                                <Grid.ColumnDefinitions><ColumnDefinition Width="42" /><ColumnDefinition Width="*" /><ColumnDefinition Width="170" /><ColumnDefinition Width="88" /></Grid.ColumnDefinitions>
+                                <Border Width="30" Height="30" Background="#FF1E3A5F" BorderBrush="#FF38669A" BorderThickness="1" CornerRadius="8" VerticalAlignment="Center">
+                                    <Viewbox Width="16" Height="16"><Path Data="M12,3A9,9 0 1,0 21,12H19A7,7 0 1,1 12,5V9L17,4L12,0V3 M11,7V13L15,15L16,13.5L13,11.7V7H11Z" Fill="#FF89C7FF" /></Viewbox>
+                                </Border>
+                                <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                    <TextBlock Text="{Binding Title}" Foreground="{StaticResource PrimaryTextBrush}" FontSize="13" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                                    <TextBlock Text="{Binding Url}" Foreground="{StaticResource MutedTextBrush}" FontSize="11" Margin="0,3,0,0" TextTrimming="CharacterEllipsis" />
+                                </StackPanel>
+                                <TextBlock Grid.Column="2" Text="{Binding LastVisitedAt, StringFormat={}{0:g}}" Foreground="#FFC4D0E0" FontSize="11" VerticalAlignment="Center" />
+                                <Border Grid.Column="3" Background="#FF1F354B" BorderBrush="#FF365C7F" BorderThickness="1" CornerRadius="8" Padding="7,4" VerticalAlignment="Center" HorizontalAlignment="Center">
+                                    <TextBlock Text="{Binding VisitCount, StringFormat={}{0} visits}" Foreground="#FF9FD4FF" FontSize="11" FontWeight="SemiBold" />
+                                </Border>
+                            </Grid>
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
+                <StackPanel x:Name="EmptyText" VerticalAlignment="Center" HorizontalAlignment="Center" Visibility="Collapsed">
+                    <Border Width="48" Height="48" Background="#FF1E3046" BorderBrush="#FF3A638E" BorderThickness="1" CornerRadius="14" HorizontalAlignment="Center"><Viewbox Width="23" Height="23"><Path Data="M12,3A9,9 0 1,0 21,12H19A7,7 0 1,1 12,5V9L17,4L12,0V3 M11,7V13L15,15L16,13.5L13,11.7V7H11Z" Fill="#FF89C7FF" /></Viewbox></Border>
+                    <TextBlock Text="No browsing history yet" Foreground="{StaticResource PrimaryTextBrush}" FontSize="15" FontWeight="SemiBold" HorizontalAlignment="Center" Margin="0,12,0,0" />
+                    <TextBlock Text="Pages you visit will appear here for 30 days." Foreground="{StaticResource MutedTextBrush}" FontSize="11" HorizontalAlignment="Center" Margin="0,5,0,0" />
+                </StackPanel>
+            </Grid>
+        </Border>
     </Grid>
 </UserControl>
