@@ -3,7 +3,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:local="clr-namespace:DeveloperBrowser.App"
         xmlns:wv2="clr-namespace:Microsoft.Web.WebView2.Wpf;assembly=Microsoft.Web.WebView2.Wpf"
-        Title="DevBrowser" Height="840" Width="1440" MinHeight="600" MinWidth="1180"
+        Title="" Height="840" Width="1440" MinHeight="600" MinWidth="1180"
         Background="{StaticResource CanvasBrush}" FontFamily="Segoe UI" TextOptions.TextFormattingMode="Display" TextOptions.TextRenderingMode="ClearType">
     <Window.Resources>
         <DrawingImage x:Key="DevBrowserIcon">
@@ -71,6 +71,12 @@
             <Setter Property="Padding" Value="11,7" />
             <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="Button"><Border x:Name="ButtonSurface" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="7"><ContentPresenter Margin="{TemplateBinding Padding}" HorizontalAlignment="Center" VerticalAlignment="Center" /></Border><ControlTemplate.Triggers><Trigger Property="IsMouseOver" Value="True"><Setter TargetName="ButtonSurface" Property="Background" Value="{StaticResource SurfaceHoverBrush}" /><Setter TargetName="ButtonSurface" Property="BorderBrush" Value="#FF5A6A83" /></Trigger></ControlTemplate.Triggers></ControlTemplate></Setter.Value></Setter>
         </Style>
+        <Style x:Key="FooterUpdateButton" TargetType="Button" BasedOn="{StaticResource PrimaryButton}">
+            <Setter Property="Padding" Value="11,5" />
+            <Setter Property="FontSize" Value="11" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Margin" Value="14,0,0,0" />
+        </Style>
         <Style x:Key="SidebarNavButton" TargetType="Button">
             <Setter Property="Foreground" Value="{StaticResource MutedTextBrush}" />
             <Setter Property="Background" Value="Transparent" />
@@ -100,7 +106,6 @@
             <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="Separator"><Border Height="1" Background="#FF35445B" /></ControlTemplate></Setter.Value></Setter>
         </Style>
     </Window.Resources>
-    <Window.Icon><StaticResource ResourceKey="DevBrowserIcon" /></Window.Icon>
     <Grid>
         <Grid.ColumnDefinitions>
             <ColumnDefinition Width="96" />
@@ -208,7 +213,15 @@ M15.5,3H17.5C18.9,3 20,4.1 20,5.5V9C20,10.1 20.9,11 22,11V13C20.9,13 20,13.9 20,
                     <TextBlock x:Name="FooterPrimaryText" Text="Network capture on" Foreground="{StaticResource PrimaryTextBrush}" FontSize="11" FontWeight="SemiBold" VerticalAlignment="Center" />
                 </StackPanel>
                 <TextBlock x:Name="FooterDetailText" Grid.Column="1" Text="Waiting for page activity" Foreground="{StaticResource MutedTextBrush}" FontSize="11" Margin="18,0" VerticalAlignment="Center" />
-                <TextBlock x:Name="FooterHintText" Grid.Column="2" Text="Open Network inspector for details" Foreground="#FF93A8C5" FontSize="11" VerticalAlignment="Center" />
+                <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+                    <TextBlock x:Name="FooterHintText" Text="Open Network inspector for details" Foreground="#FF93A8C5" FontSize="11" VerticalAlignment="Center" />
+                    <Button x:Name="FooterUpdateButton" Style="{StaticResource FooterUpdateButton}" Visibility="Collapsed" Click="FooterUpdateButton_Click" ToolTip="Download the available update and relaunch DevBrowser">
+                        <StackPanel Orientation="Horizontal">
+                            <Viewbox Width="13" Height="13"><Path Data="M11,3V12H7L12,18L17,12H13V3H11 M4,21H20V19H4V21Z" Fill="White" /></Viewbox>
+                            <TextBlock x:Name="FooterUpdateButtonText" Text="Relaunch to update" Margin="6,0,0,0" />
+                        </StackPanel>
+                    </Button>
+                </StackPanel>
             </Grid>
         </Border>
         <Popup x:Name="BookmarkFlyout" PlacementTarget="{Binding ElementName=BookmarkButton}" Placement="Bottom" HorizontalOffset="-360" VerticalOffset="10" AllowsTransparency="True" PopupAnimation="Fade" StaysOpen="False">

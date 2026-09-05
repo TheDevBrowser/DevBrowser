@@ -5,10 +5,12 @@ using System.Windows.Media;
 using System.Windows.Media.Animation;
 using System.Collections.Specialized;
 using System.ComponentModel;
+using System.Reflection;
 using DeveloperBrowser.Core.Browser;
 using DeveloperBrowser.Core.Bookmarks;
 using DeveloperBrowser.Core.Collections;
 using DeveloperBrowser.Core.History;
+using DeveloperBrowser.Core.Updates;
 using Microsoft.Web.WebView2.Wpf;
 
 namespace DeveloperBrowser.App;
@@ -23,6 +25,8 @@ public partial class MainWindow : Window
     private readonly PageMetadataService _pageMetadata;
     private readonly BookmarkManagerView _bookmarkManager;
     private readonly BrowsingHistoryView _historyView;
+    private readonly IAppUpdateService _appUpdates;
+    private CancellationTokenSource? _updateChecksCancellation;
     private BrowserTab? _activeTab;
     private double _networkDrawerHeight = 340;
     private double _networkSideWidth = 440;
@@ -30,12 +34,15 @@ public partial class MainWindow : Window
     private BookmarkItem? _editingBookmark;
     private FooterWorkspace _footerWorkspace = FooterWorkspace.Browser;
 
-    public MainWindow(IBookmarkService bookmarks, IBrowsingHistoryService history, PageMetadataService pageMetadata, ICollectionService collections, IEnvironmentService environments, IVariableResolver variables, ICollectionImportExportService collectionImportExport)
+    public MainWindow(IBookmarkService bookmarks, IBrowsingHistoryService history, PageMetadataService pageMetadata, ICollectionService collections, IEnvironmentService environments, IVariableResolver variables, ICollectionImportExportService collectionImportExport, IAppUpdateService appUpdates)
     {
         InitializeComponent();
+        SourceInitialized += (_, _) => NativeWindowStyle.ApplyModernDarkChrome(this);
         _bookmarks = bookmarks;
         _history = history;
         _pageMetadata = pageMetadata;
+        _appUpdates = appUpdates;
+        _appUpdates.StatusChanged += AppUpdates_StatusChanged;
         RestClientView.Configure(collections, environments, variables, collectionImportExport);
         _bookmarkManager = new BookmarkManagerView(_bookmarks);
         _bookmarkManager.OpenRequested += async (_, bookmark) => await OpenBookmarkAsync(bookmark.Url, false);
@@ -83,8 +90,66 @@ public partial class MainWindow : Window
         {
             await CreateTabAsync("https://www.google.com");
             await _bookmarkManager.RefreshAsync();
+            await StartUpdateChecksAsync();
+        };
+        Closed += (_, _) =>
+        {
+            _updateChecksCancellation?.Cancel();
+            _updateChecksCancellation?.Dispose();
+            _appUpdates.StatusChanged -= AppUpdates_StatusChanged;
         };
         UpdateFooterStatus();
+    }
+
+    private async Task StartUpdateChecksAsync()
+    {
+        await _appUpdates.CheckForUpdatesAsync();
+        _updateChecksCancellation = new CancellationTokenSource();
+        _ = RunPeriodicUpdateChecksAsync(_updateChecksCancellation.Token);
+    }
+
+    private async Task RunPeriodicUpdateChecksAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            using var timer = new PeriodicTimer(TimeSpan.FromHours(6));
+            while (await timer.WaitForNextTickAsync(cancellationToken))
+                await _appUpdates.CheckForUpdatesAsync(cancellationToken);
+        }
+        catch (OperationCanceledException)
+        {
+            // Normal during application shutdown.
+        }
+    }
+
+    private void AppUpdates_StatusChanged(object? sender, AppUpdateStatus status)
+    {
+        if (!Dispatcher.CheckAccess())
+        {
+            Dispatcher.BeginInvoke(() => AppUpdates_StatusChanged(sender, status));
+            return;
+        }
+
+        FooterUpdateButton.Visibility = status.State is AppUpdateState.Available or AppUpdateState.Applying
+            ? Visibility.Visible
+            : Visibility.Collapsed;
+        FooterUpdateButton.IsEnabled = status.State == AppUpdateState.Available;
+        FooterUpdateButtonText.Text = status.State == AppUpdateState.Applying ? "Updating…" : "Relaunch to update";
+        FooterUpdateButton.ToolTip = status.Message;
+    }
+
+    private async void FooterUpdateButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (RestClientView.HasUnsavedRequestChanges && MessageBox.Show(
+                "You have unsaved REST request edits. Relaunching will close DevBrowser to apply the update. Continue?",
+                "Update DevBrowser",
+                MessageBoxButton.YesNo,
+                MessageBoxImage.Warning) != MessageBoxResult.Yes)
+        {
+            return;
+        }
+
+        await _appUpdates.RelaunchToUpdateAsync();
     }
 
     private async Task<BrowserTab> CreateTabAsync(string? address = null, bool navigate = true)
@@ -296,9 +361,18 @@ public partial class MainWindow : Window
         var history = new MenuItem { Header = "History", Style = (Style)FindResource("MoreMenuItemStyle") };
         history.Click += (_, _) => ShowHistoryWorkspace_Click(this, new RoutedEventArgs());
         var about = new MenuItem { Header = "About DevBrowser", Style = (Style)FindResource("MoreMenuItemStyle") };
-        about.Click += (_, _) => MessageBox.Show("DevBrowser\nA developer-focused browser with built-in network, HAR, storage, and REST tooling.\n\nVersion 1.0", "About DevBrowser", MessageBoxButton.OK, MessageBoxImage.Information);
+        about.Click += (_, _) => MessageBox.Show($"DevBrowser\nA developer-focused browser with built-in network, HAR, storage, and REST tooling.\n\nVersion {GetDisplayVersion()}", "About DevBrowser", MessageBoxButton.OK, MessageBoxImage.Information);
         menu.Items.Add(bookmarks); menu.Items.Add(history); menu.Items.Add(new Separator { Style = (Style)FindResource("MoreMenuSeparatorStyle") }); menu.Items.Add(about);
         menu.IsOpen = true;
+    }
+
+    private static string GetDisplayVersion()
+    {
+        var version = typeof(MainWindow).Assembly
+            .GetCustomAttribute<AssemblyInformationalVersionAttribute>()?
+            .InformationalVersion;
+
+        return string.IsNullOrWhiteSpace(version) ? "development build" : version.Split('+')[0];
     }
 
     private void ToggleNetworkInspector_Click(object sender, RoutedEventArgs e)

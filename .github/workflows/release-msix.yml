@@ -1,0 +1,114 @@
+name: Release DevBrowser
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  package-and-release:
+    runs-on: windows-2022
+    env:
+      RELEASE_DIR: ${{ github.workspace }}\artifacts\release
+      PACKAGE_DIR: ${{ github.workspace }}\artifacts\package
+      SIGNING_CERTIFICATE_BASE64: ${{ secrets.SIGNING_CERTIFICATE_BASE64 }}
+      SIGNING_CERTIFICATE_PASSWORD: ${{ secrets.SIGNING_CERTIFICATE_PASSWORD }}
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v5
+
+      - name: Set up .NET 9
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: 9.0.x
+
+      - name: Load self-signed certificate
+        shell: pwsh
+        run: |
+          if ([string]::IsNullOrWhiteSpace($env:SIGNING_CERTIFICATE_BASE64) -or
+              [string]::IsNullOrWhiteSpace($env:SIGNING_CERTIFICATE_PASSWORD)) {
+            throw "Set the SIGNING_CERTIFICATE_BASE64 and SIGNING_CERTIFICATE_PASSWORD repository secrets."
+          }
+
+          New-Item -ItemType Directory -Force -Path $env:RELEASE_DIR | Out-Null
+          $pfxPath = Join-Path $env:RUNNER_TEMP "DevBrowser-signing.pfx"
+          [IO.File]::WriteAllBytes($pfxPath, [Convert]::FromBase64String($env:SIGNING_CERTIFICATE_BASE64))
+          $password = ConvertTo-SecureString $env:SIGNING_CERTIFICATE_PASSWORD -AsPlainText -Force
+          $certificate = Import-PfxCertificate -FilePath $pfxPath -CertStoreLocation Cert:\CurrentUser\My -Password $password
+          if ($null -eq $certificate) { throw "The self-signed signing certificate could not be imported." }
+
+          Export-Certificate -Cert $certificate -FilePath (Join-Path $env:RELEASE_DIR "DevBrowser.cer") | Out-Null
+          "MSIX_PUBLISHER=$($certificate.Subject)" | Out-File -FilePath $env:GITHUB_ENV -Append
+          "SIGNING_CERTIFICATE_PATH=$pfxPath" | Out-File -FilePath $env:GITHUB_ENV -Append
+          "SIGNING_CERTIFICATE_THUMBPRINT=$($certificate.Thumbprint)" | Out-File -FilePath $env:GITHUB_ENV -Append
+
+      - name: Prepare package metadata
+        shell: pwsh
+        run: |
+          $tag = "${{ github.ref_name }}"
+          if ($tag -notmatch '^v(\d+)\.(\d+)\.(\d+)$') {
+            throw "Release tags must use vMajor.Minor.Patch, for example v1.2.3."
+          }
+
+          $version = "$($Matches[1]).$($Matches[2]).$($Matches[3]).0"
+          $manifestPath = "src\DeveloperBrowser.Package\Package.appxmanifest"
+          $installerPath = "src\DeveloperBrowser.Package\DevBrowser.appinstaller"
+          (Get-Content $manifestPath -Raw).Replace('__MSIX_PUBLISHER__', $env:MSIX_PUBLISHER).Replace('Version="1.0.0.0"', "Version=`"$version`"") | Set-Content $manifestPath -NoNewline
+          (Get-Content $installerPath -Raw).Replace('__MSIX_PUBLISHER__', $env:MSIX_PUBLISHER).Replace('__MSIX_VERSION__', $version) | Set-Content $installerPath -NoNewline
+          "MSIX_VERSION=$version" | Out-File -FilePath $env:GITHUB_ENV -Append
+          "DEVBROWSER_VERSION=$($Matches[1]).$($Matches[2]).$($Matches[3])" | Out-File -FilePath $env:GITHUB_ENV -Append
+
+      - name: Restore and build DevBrowser
+        shell: pwsh
+        run: |
+          dotnet restore DeveloperBrowser.slnx
+          dotnet build DeveloperBrowser.slnx --configuration Release --no-restore -p:Platform=x64 -p:DevBrowserVersion=$env:DEVBROWSER_VERSION
+
+      - name: Build unsigned MSIX package
+        shell: pwsh
+        run: |
+          $msbuild = & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" -latest -products * -requires Microsoft.Component.MSBuild -find "MSBuild\Current\Bin\MSBuild.exe" | Select-Object -First 1
+          if (-not $msbuild) { throw "Visual Studio MSBuild was not found on the runner." }
+          & $msbuild "src\DeveloperBrowser.Package\DeveloperBrowser.Package.wapproj" /restore /m /p:Configuration=Release /p:Platform=x64 /p:DevBrowserVersion=$env:DEVBROWSER_VERSION /p:AppxPackageSigningEnabled=false /p:AppxPackageDir="$env:PACKAGE_DIR\\"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+          $msix = Get-ChildItem $env:PACKAGE_DIR -Recurse -Filter *.msix | Select-Object -First 1
+          if ($null -eq $msix) { throw "The MSIX package was not produced." }
+          Copy-Item $msix.FullName (Join-Path $env:RELEASE_DIR "DevBrowser.msix")
+          Copy-Item "src\DeveloperBrowser.Package\DevBrowser.appinstaller" (Join-Path $env:RELEASE_DIR "DevBrowser.appinstaller")
+
+      - name: Apply self-signed signature
+        shell: pwsh
+        run: |
+          $signTool = Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\bin" -Recurse -Filter signtool.exe |
+            Where-Object FullName -Match '\\x64\\signtool\.exe$' |
+            Sort-Object FullName -Descending |
+            Select-Object -First 1 -ExpandProperty FullName
+          if (-not $signTool) { throw "The Windows SDK signing tool was not found." }
+
+          & $signTool sign /fd SHA256 /sha1 $env:SIGNING_CERTIFICATE_THUMBPRINT /tr http://timestamp.acs.microsoft.com /td SHA256 "$env:RELEASE_DIR\DevBrowser.msix"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Publish GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          files: |
+            ${{ env.RELEASE_DIR }}\DevBrowser.msix
+            ${{ env.RELEASE_DIR }}\DevBrowser.appinstaller
+            ${{ env.RELEASE_DIR }}\DevBrowser.cer
+
+      - name: Remove signing certificate from runner
+        if: always()
+        shell: pwsh
+        run: |
+          if ($env:SIGNING_CERTIFICATE_THUMBPRINT) {
+            Remove-Item "Cert:\CurrentUser\My\$env:SIGNING_CERTIFICATE_THUMBPRINT" -Force -ErrorAction SilentlyContinue
+          }
+          if ($env:SIGNING_CERTIFICATE_PATH) {
+            Remove-Item -LiteralPath $env:SIGNING_CERTIFICATE_PATH -Force -ErrorAction SilentlyContinue
+          }

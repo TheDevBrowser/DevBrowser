@@ -1,0 +1,9 @@
+<Project>
+  <!-- Local builds carry a clear development label. Release builds override this
+       property from their vMajor.Minor.Patch Git tag. -->
+  <PropertyGroup>
+    <DevBrowserVersion Condition="'$(DevBrowserVersion)' == ''">1.0.0-dev</DevBrowserVersion>
+    <Version>$(DevBrowserVersion)</Version>
+    <InformationalVersion>$(DevBrowserVersion)</InformationalVersion>
+  </PropertyGroup>
+</Project>

@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="15.0" DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <PropertyGroup>
+    <ProjectGuid>{B6311E6A-D0C4-4912-BCB1-0B1B7B4D6E53}</ProjectGuid>
+    <DefaultLanguage>en-US</DefaultLanguage>
+    <AppxPackageSigningEnabled>false</AppxPackageSigningEnabled>
+    <AppxBundle>Never</AppxBundle>
+    <AppxBundlePlatforms>x64</AppxBundlePlatforms>
+    <AppxPackageDir>$(SolutionDir)artifacts\package\</AppxPackageDir>
+    <PackageCertificateThumbprint></PackageCertificateThumbprint>
+    <PackageCertificateKeyFile></PackageCertificateKeyFile>
+    <TargetPlatformIdentifier>Windows</TargetPlatformIdentifier>
+    <TargetPlatformVersion Condition="'$(DevBrowserPackagingTargetPlatformVersion)' == ''">10.0.19041.0</TargetPlatformVersion>
+    <TargetPlatformVersion Condition="'$(DevBrowserPackagingTargetPlatformVersion)' != ''">$(DevBrowserPackagingTargetPlatformVersion)</TargetPlatformVersion>
+    <TargetPlatformMinVersion>10.0.19041.0</TargetPlatformMinVersion>
+    <Platform>x64</Platform>
+    <EntryPointProjectUniqueName>..\DeveloperBrowser.App\DeveloperBrowser.App.csproj</EntryPointProjectUniqueName>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <AppxManifest Include="Package.appxmanifest" />
+    <!-- Windows validates these exact target dimensions for MSIX visual assets. -->
+    <Content Include="Assets\Square150x150Logo.png" />
+    <Content Include="Assets\Square44x44Logo.png" />
+    <Content Include="Assets\StoreLogo.png" />
+    <ProjectReference Include="..\DeveloperBrowser.App\DeveloperBrowser.App.csproj" />
+  </ItemGroup>
+
+  <Import Project="$(MSBuildExtensionsPath)\Microsoft\DesktopBridge\Microsoft.DesktopBridge.props" />
+  <Import Project="$(MSBuildExtensionsPath)\Microsoft\DesktopBridge\Microsoft.DesktopBridge.targets" />
+</Project>

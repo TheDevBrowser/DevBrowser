@@ -1,14 +1,19 @@
-# Developer Browser
+# DevBrowser
 
-A Windows developer browser MVP foundation: WPF on .NET 9, Chromium through WebView2, a CDP-ready browser boundary, an `HttpClient` REST-client abstraction, and local SQLite persistence.
+A developer-focused browser for Windows.
 
-## Layout
+## Features
 
-- `src/DeveloperBrowser.App` — WPF shell and WebView2 host.
-- `src/DeveloperBrowser.Core` — feature contracts and domain types.
-- `src/DeveloperBrowser.Infrastructure` — EF Core/SQLite, HTTP REST transport, and Windows DPAPI-backed secret storage.
+- Web browsing with multiple tabs
+- REST client
+- Network and storage inspection
+- HAR capture
+- Bookmarks and history
 
-Monaco is intentionally not bundled yet. The WebView2 host keeps the UI ready to add a Monaco-based REST body/editor surface without changing the application boundary.
+## Requirements
+
+- Windows 10 version 2004 or newer
+- .NET 9 SDK (for building)
 
 ## Build
 

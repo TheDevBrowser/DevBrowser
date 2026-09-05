@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<AppInstaller xmlns="http://schemas.microsoft.com/appx/appinstaller/2021"
+              Version="__MSIX_VERSION__"
+              Uri="https://github.com/RezaHoque/DevBrowser/releases/latest/download/DevBrowser.appinstaller">
+  <MainPackage Name="DevBrowser"
+               Publisher="__MSIX_PUBLISHER__"
+               Version="__MSIX_VERSION__"
+               ProcessorArchitecture="x64"
+               Uri="https://github.com/RezaHoque/DevBrowser/releases/latest/download/DevBrowser.msix" />
+  <UpdateSettings>
+    <OnLaunch HoursBetweenUpdateChecks="6" ShowPrompt="false" UpdateBlocksActivation="false" />
+    <AutomaticBackgroundTask />
+  </UpdateSettings>
+</AppInstaller>

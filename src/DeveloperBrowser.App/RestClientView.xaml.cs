@@ -26,6 +26,7 @@ public partial class RestClientView : UserControl
     private RestEnvironment? _activeEnvironment;
     private RestEnvironment? _selectedEnvironment;
     private Guid? _savedRequestId;
+    private bool _saveAsRequested;
     private bool _isDirty;
     private readonly List<LibraryItem> _libraryItems = [];
     private readonly List<RestCollection> _collectionTreeCollections = [];
@@ -45,8 +46,6 @@ public partial class RestClientView : UserControl
     private TextBlock? _collectionManagerTitle;
     private TextBlock? _collectionManagerDescription;
     private StackPanel? _collectionManagerContent;
-    private Button? _collectionManagerEditButton;
-    private Button? _collectionManagerDeleteButton;
     private bool _isCollectionManagerSelection;
     private Grid? _collectionDialog;
     private TextBox? _collectionDialogNameBox;
@@ -69,6 +68,15 @@ public partial class RestClientView : UserControl
     private bool _selectNewFolderForSaveDestination;
 
     public event EventHandler<RestClientFooterStatus>? FooterStatusChanged;
+
+    public bool HasUnsavedRequestChanges
+    {
+        get
+        {
+            CaptureActiveTab();
+            return _requestTabs.Any(tab => tab.IsDirty);
+        }
+    }
 
     public ObservableCollection<RequestField> Parameters { get; } = [new()];
     public ObservableCollection<RequestField> Headers { get; } = [new()];
@@ -192,7 +200,7 @@ public partial class RestClientView : UserControl
         var layout = new StackPanel { Orientation = Orientation.Horizontal };
         tab.MethodText = new TextBlock { VerticalAlignment = VerticalAlignment.Center, FontFamily = new FontFamily("Cascadia Mono"), FontWeight = FontWeights.SemiBold, FontSize = 11, Margin = new Thickness(0, 0, 9, 0) };
         tab.TitleText = new TextBlock { VerticalAlignment = VerticalAlignment.Center, Foreground = (Brush)FindResource("PrimaryTextBrush"), FontSize = 12, MaxWidth = 140, TextTrimming = TextTrimming.CharacterEllipsis };
-        var close = new Button { Content = "×", Foreground = (Brush)FindResource("MutedTextBrush"), Background = Brushes.Transparent, BorderThickness = new Thickness(0), Width = 25, Height = 28, FontSize = 15, Margin = new Thickness(7, 0, 0, 0), ToolTip = "Close request tab" };
+        var close = new Button { Content = "×", Style = (Style)FindResource("RequestTabCloseButton"), Width = 25, Height = 28, FontSize = 15, Margin = new Thickness(7, 0, 0, 0), ToolTip = "Close request tab" };
         close.Click += (_, e) => { e.Handled = true; CloseRequestTab(tab); };
         layout.Children.Add(tab.MethodText);
         layout.Children.Add(tab.TitleText);
@@ -228,6 +236,7 @@ public partial class RestClientView : UserControl
         StatusBadge.Background = tab.StatusBrush;
         UpdateAuthenticationPanels();
         _isRestoringTab = false;
+        _isDirty = tab.IsDirty;
         foreach (var item in _requestTabs) item.Header.Background = item == tab ? new SolidColorBrush(Color.FromRgb(32, 35, 43)) : Brushes.Transparent;
     }
 
@@ -280,6 +289,7 @@ public partial class RestClientView : UserControl
     private void SaveRequest_Click(object sender, RoutedEventArgs e)
     {
         CaptureActiveTab();
+        _saveAsRequested = false;
         if (_savedRequestId is null) SaveNameBox.Text = string.Empty;
         SaveUrlBox.Text = UrlBox.Text;
         SaveHintText.Text = string.Empty;
@@ -386,22 +396,34 @@ public partial class RestClientView : UserControl
         if (library is null) return;
 
         var workspace = new Grid();
-        workspace.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(310) });
+        workspace.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(336) });
         workspace.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
 
-        var sidebar = new Border { Background = new SolidColorBrush(Color.FromRgb(23, 30, 41)), BorderBrush = new SolidColorBrush(Color.FromRgb(58, 73, 96)), BorderThickness = new Thickness(0, 0, 1, 0), Padding = new Thickness(14) };
+        var sidebar = new Border { Background = new SolidColorBrush(Color.FromRgb(17, 23, 33)), BorderBrush = new SolidColorBrush(Color.FromRgb(43, 55, 72)), BorderThickness = new Thickness(0, 0, 1, 0), Padding = new Thickness(16, 18, 14, 14) };
         var sidebarGrid = new Grid();
         sidebarGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
         sidebarGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
         sidebarGrid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
-        sidebarGrid.Children.Add(new TextBlock { Text = "COLLECTIONS", Foreground = Brushes.White, FontSize = 12, FontWeight = FontWeights.SemiBold });
-        _collectionManagerSearchBox = new TextBox { Margin = new Thickness(0, 13, 0, 8), ToolTip = "Search collections and requests" };
+        var sidebarHeader = new Grid { Margin = new Thickness(2, 0, 2, 0) };
+        sidebarHeader.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        sidebarHeader.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        var headerCopy = new StackPanel();
+        headerCopy.Children.Add(new TextBlock { Text = "Collections", Foreground = new SolidColorBrush(Color.FromRgb(247, 249, 252)), FontSize = 17, FontWeight = FontWeights.SemiBold });
+        headerCopy.Children.Add(new TextBlock { Text = "Your saved API workspace", Foreground = new SolidColorBrush(Color.FromRgb(132, 148, 169)), FontSize = 11, Margin = new Thickness(0, 3, 0, 0) });
+        sidebarHeader.Children.Add(headerCopy);
+        var quickCreate = new Button { Content = "+", ToolTip = "New collection", Width = 32, Height = 32, Padding = new Thickness(0), FontSize = 19, FontWeight = FontWeights.Normal, VerticalAlignment = VerticalAlignment.Center };
+        quickCreate.Style = (Style)FindResource("PrimaryButton");
+        quickCreate.Click += NewCollectionDialog_Click;
+        Grid.SetColumn(quickCreate, 1);
+        sidebarHeader.Children.Add(quickCreate);
+        sidebarGrid.Children.Add(sidebarHeader);
+        _collectionManagerSearchBox = new TextBox { Margin = new Thickness(0, 18, 0, 12), ToolTip = "Search by collection, folder, method, or URL", Height = 38 };
         ApplySearchStyle(_collectionManagerSearchBox, "Search collections and requests…");
         _collectionManagerSearchBox.TextChanged += (_, _) => ApplyCollectionManagerSearch();
         Grid.SetRow(_collectionManagerSearchBox, 1);
         sidebarGrid.Children.Add(_collectionManagerSearchBox);
-        _collectionTreePanel = new StackPanel();
-        var treeScroller = new ScrollViewer { VerticalScrollBarVisibility = ScrollBarVisibility.Auto, Content = _collectionTreePanel };
+        _collectionTreePanel = new StackPanel { Margin = new Thickness(0, 1, 2, 0) };
+        var treeScroller = new ScrollViewer { VerticalScrollBarVisibility = ScrollBarVisibility.Auto, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled, Content = _collectionTreePanel };
         Grid.SetRow(treeScroller, 2);
         sidebarGrid.Children.Add(treeScroller);
         sidebar.Child = sidebarGrid;
@@ -413,30 +435,12 @@ public partial class RestClientView : UserControl
         detailsGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
         detailsGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
         var header = new Grid();
-        header.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        header.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         var heading = new StackPanel();
         _collectionManagerTitle = new TextBlock { Text = "Select a collection", Foreground = Brushes.White, FontSize = 19, FontWeight = FontWeights.SemiBold };
         _collectionManagerDescription = new TextBlock { Text = "Choose a collection from the left, or create a new one.", Foreground = new SolidColorBrush(Color.FromRgb(184, 197, 214)), Margin = new Thickness(0, 5, 0, 0) };
         heading.Children.Add(_collectionManagerTitle);
         heading.Children.Add(_collectionManagerDescription);
         header.Children.Add(heading);
-        var actions = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Top };
-        var create = CreateCollectionActionButton("+ New collection", NewCollectionDialog_Click, "Create a collection");
-        var edit = CreateCollectionActionButton("Edit", EditCollectionDialog_Click, "Edit selected collection");
-        var delete = CreateCollectionActionButton("Delete", DeleteSelectedCollection_Click, "Delete selected collection");
-        _collectionManagerEditButton = edit;
-        _collectionManagerDeleteButton = delete;
-        edit.IsEnabled = false;
-        delete.IsEnabled = false;
-        edit.Margin = new Thickness(7, 0, 0, 0);
-        delete.Margin = new Thickness(7, 0, 0, 0);
-        delete.Background = new SolidColorBrush(Color.FromRgb(100, 38, 48));
-        delete.BorderBrush = new SolidColorBrush(Color.FromRgb(226, 91, 102));
-        delete.Foreground = Brushes.White;
-        actions.Children.Add(create); actions.Children.Add(edit); actions.Children.Add(delete);
-        Grid.SetColumn(actions, 1);
-        header.Children.Add(actions);
         detailsGrid.Children.Add(header);
         _collectionManagerContent = new StackPanel { Margin = new Thickness(0, 22, 0, 0) };
         var detailsScroller = new ScrollViewer { Content = _collectionManagerContent, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled };
@@ -548,6 +552,16 @@ public partial class RestClientView : UserControl
         if (!string.IsNullOrWhiteSpace(search)) nodes = FilterCollectionTreeNodes(nodes, search);
         _collectionTreePanel.Children.Clear();
         foreach (var node in nodes) _collectionTreePanel.Children.Add(CreateCollectionTreeRow(node));
+        if (nodes.Count == 0)
+        {
+            var hasSearch = !string.IsNullOrWhiteSpace(search);
+            var empty = new Border { Background = new SolidColorBrush(Color.FromRgb(21, 29, 41)), BorderBrush = new SolidColorBrush(Color.FromRgb(39, 52, 69)), BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(10), Padding = new Thickness(18), Margin = new Thickness(2, 8, 2, 0) };
+            var copy = new StackPanel { HorizontalAlignment = HorizontalAlignment.Center };
+            copy.Children.Add(new TextBlock { Text = hasSearch ? "No matching items" : "No collections yet", Foreground = new SolidColorBrush(Color.FromRgb(229, 235, 243)), FontSize = 13, FontWeight = FontWeights.SemiBold, HorizontalAlignment = HorizontalAlignment.Center });
+            copy.Children.Add(new TextBlock { Text = hasSearch ? "Try a different name, method, or URL." : "Create a collection to organize your requests.", Foreground = new SolidColorBrush(Color.FromRgb(132, 148, 169)), FontSize = 11, TextWrapping = TextWrapping.Wrap, TextAlignment = TextAlignment.Center, Margin = new Thickness(0, 5, 0, 0) });
+            empty.Child = copy;
+            _collectionTreePanel.Children.Add(empty);
+        }
     }
 
     private List<CollectionTreeNode> BuildCollectionTreeNodes(bool expandAll)
@@ -578,22 +592,34 @@ public partial class RestClientView : UserControl
     private Border CreateCollectionTreeRow(CollectionTreeNode node)
     {
         var isSelected = node.IsRequest ? _selectedSavedRequest?.Id == node.Request!.Id : node.IsFolder ? _selectedFolder?.Id == node.Folder!.Id : _selectedCollection?.Id == node.Collection.Id;
-        var row = new Border { Tag = node, Background = isSelected ? new SolidColorBrush(node.IsCollection ? Color.FromRgb(26, 47, 70) : Color.FromRgb(29, 39, 54)) : Brushes.Transparent, BorderBrush = isSelected && node.IsCollection ? new SolidColorBrush(Color.FromRgb(67, 174, 242)) : Brushes.Transparent, BorderThickness = isSelected && node.IsCollection ? new Thickness(3, 0, 0, 0) : new Thickness(0), CornerRadius = new CornerRadius(3), Padding = new Thickness(5, 4, 5, 4), Margin = new Thickness(node.Indent * 20 + 2, 0, 0, 0), MinHeight = node.IsRequest ? 30 : 38, HorizontalAlignment = HorizontalAlignment.Stretch, Cursor = Cursors.Hand };
+        var row = new Border { Tag = node, Background = isSelected ? new SolidColorBrush(node.IsCollection ? Color.FromRgb(27, 49, 74) : Color.FromRgb(27, 39, 56)) : Brushes.Transparent, BorderBrush = isSelected ? new SolidColorBrush(node.IsCollection ? Color.FromRgb(50, 115, 174) : Color.FromRgb(48, 65, 87)) : Brushes.Transparent, BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(8), Padding = new Thickness(8, node.IsRequest ? 7 : 8, 7, node.IsRequest ? 7 : 8), Margin = new Thickness(node.Indent * 17 + 1, 2, 2, 2), MinHeight = node.IsRequest ? 34 : 46, HorizontalAlignment = HorizontalAlignment.Stretch, Cursor = Cursors.Hand };
         row.MouseLeftButtonUp += CollectionTreeNodeSelected_Click;
         row.MouseEnter += CollectionTreeRow_MouseEnter;
         row.MouseLeave += CollectionTreeRow_MouseLeave;
         var grid = new Grid();
-        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(22) });
-        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(16) });
-        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(8) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(20) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(18) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(9) });
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(28) });
         if (!node.IsRequest)
         {
-            var toggle = new TextBlock { Text = node.IsExpanded ? "⌄" : "›", Tag = node, Width = 18, Foreground = new SolidColorBrush(Color.FromRgb(156, 163, 175)), FontSize = 16, VerticalAlignment = VerticalAlignment.Top, Margin = new Thickness(0, node.IsCollection ? -6 : -5, 0, 0), TextAlignment = TextAlignment.Center, Cursor = Cursors.Hand, ToolTip = node.IsExpanded ? "Collapse" : "Expand" };
-            toggle.MouseLeftButtonUp += CollectionTreeToggle_Click;
-            toggle.MouseEnter += (_, _) => toggle.Foreground = new SolidColorBrush(Color.FromRgb(209, 213, 219));
-            toggle.MouseLeave += (_, _) => toggle.Foreground = new SolidColorBrush(Color.FromRgb(156, 163, 175));
+            var chevron = CreateChevronIcon(node.IsExpanded);
+            chevron.VerticalAlignment = VerticalAlignment.Top;
+            var toggle = new Border
+            {
+                Tag = node,
+                Background = Brushes.Transparent,
+                Width = 20,
+                Height = 22,
+                Margin = new Thickness(0, 1, 0, 0),
+                VerticalAlignment = VerticalAlignment.Top,
+                HorizontalAlignment = HorizontalAlignment.Center,
+                Cursor = Cursors.Hand,
+                ToolTip = node.IsExpanded ? "Collapse" : "Expand",
+                Child = chevron
+            };
+            toggle.MouseLeftButtonDown += CollectionTreeToggle_Click;
             grid.Children.Add(toggle);
         }
         FrameworkElement icon = node.IsRequest ? new Border() : CreateCollectionTreeIcon(node.IsCollection);
@@ -603,19 +629,36 @@ public partial class RestClientView : UserControl
         Grid.SetColumn(icon, 1); grid.Children.Add(icon);
         if (node.IsRequest)
         {
-            var requestLine = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
-            requestLine.Children.Add(new TextBlock { Text = node.Request!.Method, Foreground = MethodBrush(node.Request.Method), FontWeight = FontWeights.SemiBold, FontSize = 10, Width = 52 });
-            requestLine.Children.Add(new TextBlock { Text = node.Request.Name, Foreground = new SolidColorBrush(Color.FromRgb(220, 230, 242)), FontSize = 11, TextTrimming = TextTrimming.CharacterEllipsis });
+            var requestLine = new Grid { VerticalAlignment = VerticalAlignment.Center };
+            requestLine.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(48) });
+            requestLine.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            var methodBadge = new Border { Background = MethodBadgeBrush(node.Request!.Method), CornerRadius = new CornerRadius(4), Padding = new Thickness(5, 2, 5, 2), HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Center };
+            methodBadge.Child = new TextBlock { Text = node.Request.Method.ToUpperInvariant(), Foreground = MethodBrush(node.Request.Method), FontWeight = FontWeights.Bold, FontSize = 9 };
+            requestLine.Children.Add(methodBadge);
+            var requestName = new TextBlock { Text = node.Request.Name, Foreground = new SolidColorBrush(Color.FromRgb(218, 227, 239)), FontSize = 11.5, TextTrimming = TextTrimming.CharacterEllipsis, VerticalAlignment = VerticalAlignment.Center };
+            Grid.SetColumn(requestName, 1);
+            requestLine.Children.Add(requestName);
             Grid.SetColumn(requestLine, 3); grid.Children.Add(requestLine);
         }
         else
         {
             var labels = new StackPanel();
-            labels.Children.Add(new TextBlock { Text = node.DisplayName, Foreground = Brushes.White, FontWeight = FontWeights.SemiBold, FontSize = 12 });
-            labels.Children.Add(new TextBlock { Text = $"{node.RequestCount} request{(node.RequestCount == 1 ? string.Empty : "s")}", Foreground = new SolidColorBrush(Color.FromRgb(159, 176, 197)), FontSize = 10, Margin = new Thickness(0, 2, 0, 0) });
+            labels.Children.Add(new TextBlock { Text = node.DisplayName, Foreground = new SolidColorBrush(Color.FromRgb(241, 245, 249)), FontWeight = FontWeights.SemiBold, FontSize = 12, TextTrimming = TextTrimming.CharacterEllipsis });
+            labels.Children.Add(new TextBlock { Text = $"{node.RequestCount} request{(node.RequestCount == 1 ? string.Empty : "s")}", Foreground = new SolidColorBrush(Color.FromRgb(132, 148, 169)), FontSize = 10, Margin = new Thickness(0, 3, 0, 0) });
             Grid.SetColumn(labels, 3); grid.Children.Add(labels);
-            var menu = new TextBlock { Text = "...", Tag = node, Width = 24, Foreground = new SolidColorBrush(Color.FromRgb(205, 217, 233)), FontSize = 13, FontWeight = FontWeights.Bold, VerticalAlignment = VerticalAlignment.Top, Margin = new Thickness(0, 2, 0, 0), TextAlignment = TextAlignment.Center, Cursor = Cursors.Hand, ToolTip = "More options" };
-            menu.MouseLeftButtonUp += CollectionNodeMenu_Click;
+            var menu = new Border
+            {
+                Tag = node,
+                Background = Brushes.Transparent,
+                Width = 28,
+                Height = 30,
+                VerticalAlignment = VerticalAlignment.Center,
+                HorizontalAlignment = HorizontalAlignment.Center,
+                Cursor = Cursors.Hand,
+                ToolTip = "More options",
+                Child = CreateMoreIcon()
+            };
+            menu.MouseLeftButtonDown += CollectionNodeMenu_Click;
             Grid.SetColumn(menu, 4); grid.Children.Add(menu);
         }
         row.Child = grid;
@@ -661,6 +704,19 @@ public partial class RestClientView : UserControl
         return new Viewbox { Width = 14, Height = 14, Child = canvas };
     }
 
+    private static Brush MethodBadgeBrush(string method)
+    {
+        var color = method.ToUpperInvariant() switch
+        {
+            "GET" => Color.FromRgb(20, 77, 67),
+            "POST" => Color.FromRgb(44, 68, 108),
+            "PUT" or "PATCH" => Color.FromRgb(91, 65, 29),
+            "DELETE" => Color.FromRgb(91, 42, 49),
+            _ => Color.FromRgb(53, 65, 82)
+        };
+        return new SolidColorBrush(color);
+    }
+
     private static List<CollectionTreeNode> FilterCollectionTreeNodes(IEnumerable<CollectionTreeNode> nodes, string search)
     {
         var source = nodes.ToList();
@@ -690,7 +746,7 @@ public partial class RestClientView : UserControl
     {
         if (sender is not Border { Tag: CollectionTreeNode node }) return;
         var selected = node.IsRequest ? _selectedSavedRequest?.Id == node.Request!.Id : node.IsFolder ? _selectedFolder?.Id == node.Folder!.Id : _selectedCollection?.Id == node.Collection.Id;
-        if (!selected) nodeRowBackground(sender, Color.FromRgb(25, 35, 49));
+        if (!selected) nodeRowBackground(sender, Color.FromRgb(23, 33, 47));
     }
 
     private void CollectionTreeRow_MouseLeave(object sender, MouseEventArgs e)
@@ -725,6 +781,13 @@ public partial class RestClientView : UserControl
     {
         if (sender is not FrameworkElement { Tag: CollectionTreeNode node }) return;
         var expanded = node.IsCollection ? _collectionExpansionStates : _folderExpansionStates;
+        var isSearching = !string.IsNullOrWhiteSpace(_collectionManagerSearchBox?.Text);
+        if (isSearching)
+        {
+            // Search deliberately reveals matching branches. Clearing it makes the
+            // user's explicit expand/collapse choice visible instead of overriding it.
+            _collectionManagerSearchBox!.Clear();
+        }
         expanded[node.Id] = !node.IsExpanded;
         ApplyCollectionManagerSearch();
         e.Handled = true;
@@ -744,7 +807,7 @@ public partial class RestClientView : UserControl
         addFolder.Click += (_, _) => OpenFolderDialog(node.Collection, node.Folder, null);
         var addRequest = new MenuItem { Header = "Add request", Style = menuItemStyle };
         addRequest.Click += (_, _) => AddRequestFromMenu(node);
-        var rename = new MenuItem { Header = "Rename", Style = menuItemStyle };
+        var rename = new MenuItem { Header = "Edit", Style = menuItemStyle };
         rename.Click += (_, _) =>
         {
             if (node.IsCollection) OpenCollectionDialog(node.Collection);
@@ -790,8 +853,6 @@ public partial class RestClientView : UserControl
         var collection = _isCollectionManagerSelection && _selectedCollection is not null
             ? _collectionTreeCollections.FirstOrDefault(item => item.Id == _selectedCollection.Id) ?? _selectedCollection
             : null;
-        _collectionManagerEditButton!.IsEnabled = collection is not null;
-        _collectionManagerDeleteButton!.IsEnabled = collection is not null;
         _collectionManagerTitle.Text = collection?.Name ?? "Select a collection";
         _collectionManagerDescription.Text = collection?.Description ?? "Choose a collection from the left to view its details and saved requests.";
         _collectionManagerContent.Children.Clear();
@@ -1216,13 +1277,14 @@ public partial class RestClientView : UserControl
         EnvironmentManagerList.SelectedItem = rows.FirstOrDefault(row => row.Tag is RestEnvironment environment && environment.Id == _selectedEnvironment?.Id);
     }
 
-    private static Border CreateEnvironmentManagerRow(RestEnvironment environment)
+    private Border CreateEnvironmentManagerRow(RestEnvironment environment)
     {
-        var row = new Border { Tag = environment, Background = new SolidColorBrush(Color.FromRgb(29, 38, 52)), CornerRadius = new CornerRadius(6), Padding = new Thickness(9, 8, 9, 8), Margin = new Thickness(0, 2, 0, 2), HorizontalAlignment = HorizontalAlignment.Stretch };
+        var row = new Border { Tag = environment, Background = new SolidColorBrush(Color.FromRgb(29, 38, 52)), CornerRadius = new CornerRadius(8), Padding = new Thickness(9, 8, 6, 8), Margin = new Thickness(0, 2, 0, 2), HorizontalAlignment = HorizontalAlignment.Stretch };
         var grid = new Grid();
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(18) });
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(32) });
         var color = Brushes.Gray;
         try { color = new SolidColorBrush((Color)ColorConverter.ConvertFromString(environment.Color)); }
         catch (FormatException) { }
@@ -1235,12 +1297,48 @@ public partial class RestClientView : UserControl
         grid.Children.Add(labels);
         if (environment.IsActive)
         {
-            var active = new TextBlock { Text = "Active", Foreground = new SolidColorBrush(Color.FromRgb(134, 239, 172)), FontSize = 10, VerticalAlignment = VerticalAlignment.Center };
+            var active = new Border { Background = new SolidColorBrush(Color.FromRgb(20, 77, 67)), CornerRadius = new CornerRadius(5), Padding = new Thickness(6, 3, 6, 3), Margin = new Thickness(5, 0, 5, 0), VerticalAlignment = VerticalAlignment.Center };
+            active.Child = new TextBlock { Text = "Active", Foreground = new SolidColorBrush(Color.FromRgb(134, 239, 172)), FontSize = 9, FontWeight = FontWeights.SemiBold };
             Grid.SetColumn(active, 2);
             grid.Children.Add(active);
         }
+        var menu = new Border
+        {
+            Tag = environment,
+            Background = Brushes.Transparent,
+            Width = 28,
+            Height = 30,
+            HorizontalAlignment = HorizontalAlignment.Center,
+            VerticalAlignment = VerticalAlignment.Center,
+            Cursor = Cursors.Hand,
+            ToolTip = "More options",
+            Child = CreateMoreIcon()
+        };
+        menu.MouseLeftButtonDown += EnvironmentNodeMenu_Click;
+        Grid.SetColumn(menu, 3);
+        grid.Children.Add(menu);
         row.Child = grid;
         return row;
+    }
+
+    private void EnvironmentNodeMenu_Click(object sender, MouseButtonEventArgs e)
+    {
+        if (sender is not FrameworkElement { Tag: RestEnvironment environment } button) return;
+        var menuItemStyle = (Style)FindResource("CollectionTreeContextMenuItem");
+        var separatorStyle = (Style)FindResource("CollectionTreeContextMenuSeparator");
+        var menu = new ContextMenu { PlacementTarget = button, Style = (Style)FindResource("CollectionTreeContextMenu") };
+        var setActive = new MenuItem { Header = "Set active", Style = menuItemStyle, IsEnabled = !environment.IsActive };
+        setActive.Click += async (_, _) => await SetActiveEnvironmentAsync(environment);
+        var duplicate = new MenuItem { Header = "Duplicate", Style = menuItemStyle };
+        duplicate.Click += async (_, _) => await DuplicateEnvironmentAsync(environment);
+        var delete = new MenuItem { Header = "Delete", Style = menuItemStyle, Foreground = new SolidColorBrush(Color.FromRgb(255, 177, 177)) };
+        delete.Click += async (_, _) => await DeleteEnvironmentAsync(environment);
+        menu.Items.Add(setActive);
+        menu.Items.Add(duplicate);
+        menu.Items.Add(new Separator { Style = separatorStyle });
+        menu.Items.Add(delete);
+        menu.IsOpen = true;
+        e.Handled = true;
     }
 
     private void UpdateEnvironmentManager()
@@ -1278,38 +1376,19 @@ public partial class RestClientView : UserControl
             details.Children.Insert(0, titleLine);
         }
 
-        var actionButtons = FindLogicalChildren<Button>(EnvironmentManagerHost).ToList();
-        var setActive = actionButtons.FirstOrDefault(button => string.Equals(button.Content as string, "Set active", StringComparison.Ordinal));
-        if (setActive is not null)
-        {
-            setActive.Background = new SolidColorBrush(Color.FromRgb(25, 97, 65));
-            setActive.BorderBrush = new SolidColorBrush(Color.FromRgb(52, 181, 111));
-            setActive.Foreground = Brushes.White;
-        }
-
-        var delete = actionButtons.FirstOrDefault(button => string.Equals(button.Content as string, "Delete", StringComparison.Ordinal));
-        if (delete is not null)
-        {
-            delete.Background = new SolidColorBrush(Color.FromRgb(100, 38, 48));
-            delete.BorderBrush = new SolidColorBrush(Color.FromRgb(226, 91, 102));
-            delete.Foreground = Brushes.White;
-        }
-    }
-
-    private static IEnumerable<T> FindLogicalChildren<T>(DependencyObject parent) where T : DependencyObject
-    {
-        foreach (var child in LogicalTreeHelper.GetChildren(parent).OfType<DependencyObject>())
-        {
-            if (child is T result) yield return result;
-            foreach (var nested in FindLogicalChildren<T>(child)) yield return nested;
-        }
     }
 
     private async void SetActiveEnvironment_Click(object sender, RoutedEventArgs e)
     {
-        if (_selectedEnvironment is null || _environments is null) return;
-        await _environments.SetActiveAsync(_selectedEnvironment.Id);
-        _activeEnvironment = _selectedEnvironment;
+        if (_selectedEnvironment is not null) await SetActiveEnvironmentAsync(_selectedEnvironment);
+    }
+
+    private async Task SetActiveEnvironmentAsync(RestEnvironment environment)
+    {
+        if (_environments is null) return;
+        _selectedEnvironment = environment;
+        await _environments.SetActiveAsync(environment.Id);
+        _activeEnvironment = environment;
         await RefreshLibraryAsync();
     }
 
@@ -1579,7 +1658,12 @@ public partial class RestClientView : UserControl
     private async void DuplicateEnvironment_Click(object sender, RoutedEventArgs e)
     {
         var environment = _selectedEnvironment ?? _activeEnvironment;
-        if (_environments is null || environment is null) return;
+        if (environment is not null) await DuplicateEnvironmentAsync(environment);
+    }
+
+    private async Task DuplicateEnvironmentAsync(RestEnvironment environment)
+    {
+        if (_environments is null) return;
         _selectedEnvironment = await _environments.DuplicateEnvironmentAsync(environment.Id);
         await RefreshLibraryAsync();
     }
@@ -1587,7 +1671,12 @@ public partial class RestClientView : UserControl
     private async void DeleteEnvironment_Click(object sender, RoutedEventArgs e)
     {
         var environment = _selectedEnvironment ?? _activeEnvironment;
-        if (_environments is null || environment is null) return;
+        if (environment is not null) await DeleteEnvironmentAsync(environment);
+    }
+
+    private async Task DeleteEnvironmentAsync(RestEnvironment environment)
+    {
+        if (_environments is null) return;
         if (MessageBox.Show($"Delete environment '{environment.Name}'?", "DevBrowser", MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes) return;
         await _environments.DeleteEnvironmentAsync(environment.Id);
         if (_activeEnvironment?.Id == environment.Id) _activeEnvironment = null;
@@ -1761,9 +1850,9 @@ public partial class RestClientView : UserControl
         OpenFolderDialog(_saveDestinationCollection, _saveDestinationFolder, null);
     }
 
-    private async void SaveFlyoutSave_Click(object sender, RoutedEventArgs e) => await SaveCurrentAsync(false);
-    private async void SaveAs_Click(object sender, RoutedEventArgs e) { _savedRequestId = null; SaveNameBox.Text = string.Empty; SaveUrlBox.Text = UrlBox.Text; SaveHintText.Text = string.Empty; EnsureSaveDestination(); SaveFlyout.Visibility = Visibility.Visible; await Task.CompletedTask; }
-    private void SaveFlyoutCancel_Click(object sender, RoutedEventArgs e) => SaveFlyout.Visibility = Visibility.Collapsed;
+    private async void SaveFlyoutSave_Click(object sender, RoutedEventArgs e) => await SaveCurrentAsync(_saveAsRequested);
+    private async void SaveAs_Click(object sender, RoutedEventArgs e) { _saveAsRequested = true; SaveNameBox.Text = string.Empty; SaveUrlBox.Text = UrlBox.Text; SaveHintText.Text = string.Empty; EnsureSaveDestination(); SaveFlyout.Visibility = Visibility.Visible; await Task.CompletedTask; }
+    private void SaveFlyoutCancel_Click(object sender, RoutedEventArgs e) { _saveAsRequested = false; SaveFlyout.Visibility = Visibility.Collapsed; }
     private async Task SaveCurrentAsync(bool forceNew)
     {
         if (_collections is null || _saveDestinationCollection is null) { SaveHintText.Text = "Choose a save location."; return; }
@@ -1771,7 +1860,7 @@ public partial class RestClientView : UserControl
         if (string.IsNullOrWhiteSpace(name)) { SaveHintText.Text = "Enter a URL or request name."; return; }
         var item = new SavedRestRequest { Id = forceNew || _savedRequestId is null ? Guid.NewGuid() : _savedRequestId.Value, CollectionId = _saveDestinationCollection.Id, FolderId = _saveDestinationFolder?.Id, Name = name, Method = SelectedContent(MethodBox), Url = UrlBox.Text, Parameters = Parameters.Select(x => new SavedRequestField(x.IsEnabled, x.Key, x.Value)).ToList(), Headers = Headers.Select(x => new SavedRequestField(x.IsEnabled, x.Key, x.Value)).ToList(), Body = BodyBox.Text, ContentType = SelectedContent(ContentTypeBox), AuthType = SelectedContent(AuthTypeBox), AuthToken = TokenBox.Password, AuthUsername = UsernameBox.Text, AuthPassword = PasswordBox.Password };
         var saved = await _collections.SaveRequestAsync(item);
-        _savedRequestId = saved.Id; _isDirty = false; SaveFlyout.Visibility = Visibility.Collapsed;
+        _savedRequestId = saved.Id; _saveAsRequested = false; _isDirty = false; if (_activeRequestTab is not null) _activeRequestTab.IsDirty = false; SaveFlyout.Visibility = Visibility.Collapsed;
         await RefreshLibraryAsync(); UpdateRequestTabHeader(_activeRequestTab!);
     }
 
@@ -1818,7 +1907,7 @@ public partial class RestClientView : UserControl
     private ResolvedEditorValues ResolveEditorValues() { var url = ResolveText(UrlBox.Text); var body = ResolveText(BodyBox.Text); var token = ResolveText(TokenBox.Password); var user = ResolveText(UsernameBox.Text); var password = ResolveText(PasswordBox.Password); return new(url.Value, body.Value, token.Value, user.Value, password.Value, url.MissingVariables.Concat(body.MissingVariables).Concat(token.MissingVariables).Concat(user.MissingVariables).Concat(password.MissingVariables).Distinct(StringComparer.OrdinalIgnoreCase).ToArray()); }
     private IReadOnlyDictionary<string, string> ActiveValues() => _activeEnvironment?.Variables.Where(x => x.IsEnabled && x.Value is not null).ToDictionary(x => x.Key, x => x.Value!, StringComparer.OrdinalIgnoreCase) ?? new Dictionary<string, string>();
     private void UpdateVariablePreview() { if (VariableStatusText is null) return; var result = ResolveText(UrlBox?.Text); VariableStatusText.Text = result.IsResolved && !string.Equals(result.Value, UrlBox?.Text, StringComparison.Ordinal) ? result.Value : result.MissingVariables.Count > 0 ? "Missing: " + string.Join(", ", result.MissingVariables) : string.Empty; VariableStatusText.Foreground = new SolidColorBrush(result.MissingVariables.Count > 0 ? Color.FromRgb(253, 186, 116) : Color.FromRgb(174, 204, 238)); }
-    private void MarkDirty() { if (_isRestoringTab) return; _isDirty = _savedRequestId is not null; if (_activeRequestTab is not null) UpdateRequestTabHeader(_activeRequestTab); }
+    private void MarkDirty() { if (_isRestoringTab) return; _isDirty = true; if (_activeRequestTab is not null) { _activeRequestTab.IsDirty = true; UpdateRequestTabHeader(_activeRequestTab); } }
 
     private void SetFooterStatus(string primary, string detail, bool isFailure = false, bool isBusy = false) =>
         FooterStatusChanged?.Invoke(this, new RestClientFooterStatus(primary, detail, isFailure, isBusy));
@@ -1866,6 +1955,7 @@ public partial class RestClientView : UserControl
         public string Status { get; set; } = "Ready";
         public string ResponseMeta { get; set; } = "Send a request to begin";
         public Brush StatusBrush { get; set; } = new SolidColorBrush(Color.FromRgb(38, 50, 56));
+        public bool IsDirty { get; set; }
         public Border Header { get; set; } = null!;
         public TextBlock? MethodText { get; set; }
         public TextBlock? TitleText { get; set; }
