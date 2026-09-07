@@ -50,17 +50,25 @@ jobs:
         shell: pwsh
         run: |
           $tag = "${{ github.ref_name }}"
-          if ($tag -notmatch '^v(\d+)\.(\d+)\.(\d+)$') {
-            throw "Release tags must use vMajor.Minor.Patch, for example v1.2.3."
+          if ($tag -notmatch '^v(\d+)\.(\d+)\.(\d+)(?:-beta\.(\d+))?$') {
+            throw "Release tags must use vMajor.Minor.Patch or vMajor.Minor.Patch-beta.Number, for example v1.2.3 or v1.2.3-beta.1."
           }
 
-          $version = "$($Matches[1]).$($Matches[2]).$($Matches[3]).0"
+          $major = $Matches[1]
+          $minor = $Matches[2]
+          $patch = $Matches[3]
+          $betaNumber = $Matches[4]
+          $revision = if ($betaNumber) { [int]$betaNumber } else { 65535 }
+          $version = "$major.$minor.$patch.$revision"
+          $displayVersion = "$major.$minor.$patch"
+          if ($betaNumber) { $displayVersion += "-beta.$betaNumber" }
+
           $manifestPath = "src\DeveloperBrowser.Package\Package.appxmanifest"
           $installerPath = "src\DeveloperBrowser.Package\DevBrowser.appinstaller"
           (Get-Content $manifestPath -Raw).Replace('__MSIX_PUBLISHER__', $env:MSIX_PUBLISHER).Replace('Version="1.0.0.0"', "Version=`"$version`"") | Set-Content $manifestPath -NoNewline
           (Get-Content $installerPath -Raw).Replace('__MSIX_PUBLISHER__', $env:MSIX_PUBLISHER).Replace('__MSIX_VERSION__', $version) | Set-Content $installerPath -NoNewline
           "MSIX_VERSION=$version" | Out-File -FilePath $env:GITHUB_ENV -Append
-          "DEVBROWSER_VERSION=$($Matches[1]).$($Matches[2]).$($Matches[3])" | Out-File -FilePath $env:GITHUB_ENV -Append
+          "DEVBROWSER_VERSION=$displayVersion" | Out-File -FilePath $env:GITHUB_ENV -Append
 
       - name: Restore and build DevBrowser
         shell: pwsh

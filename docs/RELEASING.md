@@ -16,7 +16,7 @@ Never commit the `.pfx` file or its password. The workflow reads the publisher i
 ## Publish a release
 
 1. Update DevBrowser normally and verify the Release build locally.
-2. Create and push a semantic version tag, such as `v1.0.0`.
+2. Create and push a semantic version tag, such as `v1.0.0`, or a beta tag such as `v1.0.0-beta.1`.
 3. The release workflow builds, signs, and publishes these files to GitHub Releases:
    - `DevBrowser.appinstaller` — users install this file first and it remains their update source.
    - `DevBrowser.msix` — the self-signed application package.
@@ -32,7 +32,7 @@ The package deliberately keeps DevBrowser's existing `%LocalAppData%\DevBrowser`
 
 ## Versioning
 
-`Directory.Build.props` supplies the development version (`1.0.0-dev`) shown in DevBrowser's **About** menu. A release tag is the source of truth for a public build: the `v1.2.3` tag produces app version `1.2.3` and MSIX version `1.2.3.0`. Do not manually edit the generated MSIX version values.
+`Directory.Build.props` supplies the development version (`1.0.0-dev`) shown in DevBrowser's **About** menu. A release tag is the source of truth for a public build. The `v1.2.3-beta.1` tag produces app version `1.2.3-beta.1` and MSIX version `1.2.3.1`; the stable `v1.2.3` tag produces app version `1.2.3` and MSIX version `1.2.3.65535`, ensuring that Windows considers the stable package newer than its beta packages. Do not manually edit the generated MSIX version values.
 
 ## Testing before a public release
 
