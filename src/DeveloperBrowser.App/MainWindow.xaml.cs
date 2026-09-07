@@ -6,12 +6,15 @@ using System.Windows.Media.Animation;
 using System.Collections.Specialized;
 using System.ComponentModel;
 using System.Reflection;
+using System.IO;
 using DeveloperBrowser.Core.Browser;
 using DeveloperBrowser.Core.Bookmarks;
 using DeveloperBrowser.Core.Collections;
 using DeveloperBrowser.Core.History;
 using DeveloperBrowser.Core.Updates;
 using Microsoft.Web.WebView2.Wpf;
+using DeveloperBrowser.App.Diagnostics;
+using System.Diagnostics;
 
 namespace DeveloperBrowser.App;
 
@@ -26,6 +29,8 @@ public partial class MainWindow : Window
     private readonly BookmarkManagerView _bookmarkManager;
     private readonly BrowsingHistoryView _historyView;
     private readonly IAppUpdateService _appUpdates;
+    private readonly CrashReportingService _crashReporting;
+    private readonly string _logDirectory;
     private CancellationTokenSource? _updateChecksCancellation;
     private BrowserTab? _activeTab;
     private double _networkDrawerHeight = 340;
@@ -34,7 +39,7 @@ public partial class MainWindow : Window
     private BookmarkItem? _editingBookmark;
     private FooterWorkspace _footerWorkspace = FooterWorkspace.Browser;
 
-    public MainWindow(IBookmarkService bookmarks, IBrowsingHistoryService history, PageMetadataService pageMetadata, ICollectionService collections, IEnvironmentService environments, IVariableResolver variables, ICollectionImportExportService collectionImportExport, IAppUpdateService appUpdates)
+    public MainWindow(IBookmarkService bookmarks, IBrowsingHistoryService history, PageMetadataService pageMetadata, ICollectionService collections, IEnvironmentService environments, IVariableResolver variables, ICollectionImportExportService collectionImportExport, IAppUpdateService appUpdates, CrashReportingService crashReporting, string dataDirectory)
     {
         InitializeComponent();
         SourceInitialized += (_, _) => NativeWindowStyle.ApplyModernDarkChrome(this);
@@ -42,6 +47,8 @@ public partial class MainWindow : Window
         _history = history;
         _pageMetadata = pageMetadata;
         _appUpdates = appUpdates;
+        _crashReporting = crashReporting;
+        _logDirectory = Path.Combine(dataDirectory, "Logs");
         _appUpdates.StatusChanged += AppUpdates_StatusChanged;
         RestClientView.Configure(collections, environments, variables, collectionImportExport);
         _bookmarkManager = new BookmarkManagerView(_bookmarks);
@@ -360,9 +367,17 @@ public partial class MainWindow : Window
         bookmarks.Click += (_, _) => ShowBookmarksWorkspace_Click(this, new RoutedEventArgs());
         var history = new MenuItem { Header = "History", Style = (Style)FindResource("MoreMenuItemStyle") };
         history.Click += (_, _) => ShowHistoryWorkspace_Click(this, new RoutedEventArgs());
+        var crashReports = new MenuItem { Header = "Diagnostics settings…", Style = (Style)FindResource("MoreMenuItemStyle") };
+        crashReports.Click += (_, _) =>
+        {
+            var dialog = new CrashReportingConsentDialog(_crashReporting.RecordedChoice) { Owner = this };
+            if (dialog.ShowDialog() == true) _crashReporting.SetEnabled(dialog.ReportingEnabled);
+        };
+        var openLogs = new MenuItem { Header = "Open log folder", Style = (Style)FindResource("MoreMenuItemStyle") };
+        openLogs.Click += (_, _) => Process.Start(new ProcessStartInfo(_logDirectory) { UseShellExecute = true });
         var about = new MenuItem { Header = "About DevBrowser", Style = (Style)FindResource("MoreMenuItemStyle") };
         about.Click += (_, _) => MessageBox.Show($"DevBrowser\nA developer-focused browser with built-in network, HAR, storage, and REST tooling.\n\nVersion {GetDisplayVersion()}", "About DevBrowser", MessageBoxButton.OK, MessageBoxImage.Information);
-        menu.Items.Add(bookmarks); menu.Items.Add(history); menu.Items.Add(new Separator { Style = (Style)FindResource("MoreMenuSeparatorStyle") }); menu.Items.Add(about);
+        menu.Items.Add(bookmarks); menu.Items.Add(history); menu.Items.Add(new Separator { Style = (Style)FindResource("MoreMenuSeparatorStyle") }); menu.Items.Add(crashReports); menu.Items.Add(openLogs); menu.Items.Add(new Separator { Style = (Style)FindResource("MoreMenuSeparatorStyle") }); menu.Items.Add(about);
         menu.IsOpen = true;
     }
 

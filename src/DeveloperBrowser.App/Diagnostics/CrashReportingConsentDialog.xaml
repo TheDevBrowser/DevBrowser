@@ -1,0 +1,103 @@
+<Window x:Class="DeveloperBrowser.App.Diagnostics.CrashReportingConsentDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Anonymous diagnostics" Width="540" Height="450" ResizeMode="NoResize"
+        WindowStartupLocation="CenterOwner" ShowInTaskbar="False"
+        Background="{StaticResource CanvasBrush}" Foreground="{StaticResource PrimaryTextBrush}">
+    <Window.Resources>
+        <Style x:Key="ChoiceCard" TargetType="RadioButton">
+            <Setter Property="Foreground" Value="{StaticResource PrimaryTextBrush}" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="RadioButton">
+                        <Border x:Name="Card" Background="{StaticResource SurfaceBrush}" BorderBrush="{StaticResource BorderBrush}"
+                                BorderThickness="1" CornerRadius="9" Padding="14,12">
+                            <Grid>
+                                <Grid.ColumnDefinitions><ColumnDefinition Width="24" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                                <Grid Width="16" Height="16" VerticalAlignment="Center">
+                                    <Ellipse x:Name="Ring" Stroke="#FF718198" StrokeThickness="2" />
+                                    <Ellipse x:Name="Dot" Width="8" Height="8" Fill="{StaticResource AccentBrush}" Visibility="Collapsed" />
+                                </Grid>
+                                <ContentPresenter Grid.Column="1" Margin="8,0,0,0" VerticalAlignment="Center" />
+                            </Grid>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Card" Property="BorderBrush" Value="#FF607694" /><Setter TargetName="Card" Property="Background" Value="#FF252E3D" /></Trigger>
+                            <Trigger Property="IsChecked" Value="True"><Setter TargetName="Card" Property="BorderBrush" Value="{StaticResource AccentBrush}" /><Setter TargetName="Card" Property="Background" Value="#FF1B304D" /><Setter TargetName="Ring" Property="Stroke" Value="{StaticResource AccentBrush}" /><Setter TargetName="Dot" Property="Visibility" Value="Visible" /></Trigger>
+                            <Trigger Property="IsKeyboardFocused" Value="True"><Setter TargetName="Card" Property="BorderBrush" Value="#FF78ADFF" /></Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        <Style x:Key="CloseButton" TargetType="Button">
+            <Setter Property="Foreground" Value="{StaticResource PrimaryTextBrush}" />
+            <Setter Property="Background" Value="{StaticResource SurfaceBrush}" />
+            <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Padding" Value="16,8" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Surface" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="8">
+                            <ContentPresenter Margin="{TemplateBinding Padding}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Surface" Property="Background" Value="{StaticResource SurfaceHoverBrush}" /><Setter TargetName="Surface" Property="BorderBrush" Value="#FF607694" /></Trigger>
+                            <Trigger Property="IsPressed" Value="True"><Setter TargetName="Surface" Property="Background" Value="#FF202735" /></Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </Window.Resources>
+    <Grid Margin="26,24">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <StackPanel Orientation="Horizontal">
+            <Border Width="34" Height="34" CornerRadius="9" Background="#FF1B3A61" Margin="0,0,12,0">
+                <TextBlock Text="!" Foreground="#FF78ADFF" FontSize="19" FontWeight="Bold" HorizontalAlignment="Center" VerticalAlignment="Center" />
+            </Border>
+            <TextBlock Text="Share anonymous diagnostics?" FontSize="20" FontWeight="SemiBold" VerticalAlignment="Center" />
+        </StackPanel>
+        <TextBlock Grid.Row="1" Margin="0,10,0,0" Foreground="{StaticResource MutedTextBrush}" TextWrapping="Wrap"
+                   Text="Diagnostics help measure successful first launches and identify failures on computers we cannot access. Your choice can be changed at any time." />
+
+        <StackPanel Grid.Row="2" Margin="0,20,0,0">
+            <RadioButton x:Name="EnableReportingOption" GroupName="Consent" Style="{StaticResource ChoiceCard}" Margin="0,0,0,10">
+                <TextBlock Text="Yes — share anonymous diagnostics" />
+            </RadioButton>
+            <RadioButton x:Name="DisableReportingOption" GroupName="Consent" Style="{StaticResource ChoiceCard}">
+                <TextBlock Text="No — keep diagnostics on this computer" />
+            </RadioButton>
+        </StackPanel>
+
+        <Border Grid.Row="3" Margin="0,20,0,16" Padding="14" Background="{StaticResource SurfaceBrush}"
+                BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="8">
+            <StackPanel>
+                <TextBlock Text="Diagnostics contain" FontWeight="SemiBold" />
+                <TextBlock Margin="0,6,0,0" Foreground="{StaticResource MutedTextBrush}" TextWrapping="Wrap"
+                           Text="One first-launch event, DevBrowser/platform versions, and—if a failure occurs—the error type and sanitized stack trace." />
+                <TextBlock Margin="0,12,0,0" Text="Diagnostics never contain" FontWeight="SemiBold" />
+                <TextBlock Margin="0,6,0,0" Foreground="{StaticResource MutedTextBrush}" TextWrapping="Wrap"
+                           Text="URLs, headers, cookies, request or response bodies, tokens, environment values, or browser storage." />
+            </StackPanel>
+        </Border>
+
+        <Grid Grid.Row="4">
+            <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+            <TextBlock x:Name="ValidationText" Foreground="#FFFFB4B4" VerticalAlignment="Center" />
+            <Button Grid.Column="1" Content="Close" Style="{StaticResource CloseButton}" Margin="0,0,8,0" Click="Close_Click" IsCancel="True" />
+            <Button Grid.Column="2" Content="Save" Style="{StaticResource PrimaryButton}" Click="Save_Click" />
+        </Grid>
+    </Grid>
+</Window>
