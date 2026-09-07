@@ -15,6 +15,7 @@
   <ItemGroup>
     <Resource Include="Assets\devbrowser-mark.png" />
     <Resource Include="Assets\devbrowser-mark-small.png" />
+    <Resource Include="Assets\devbrowser-website-mark-64.png" />
   </ItemGroup>
 
   <PropertyGroup>

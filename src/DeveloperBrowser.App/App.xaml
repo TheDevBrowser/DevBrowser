@@ -9,7 +9,7 @@
         <Color x:Key="Border">#FF3A4558</Color>
         <Color x:Key="TextPrimary">#FFF8FAFC</Color>
         <Color x:Key="TextMuted">#FFB8C5D6</Color>
-        <Color x:Key="Accent">#FF3B82F6</Color>
+        <Color x:Key="Accent">#FFC6FE1E</Color>
         <SolidColorBrush x:Key="CanvasBrush" Color="{StaticResource Canvas}" />
         <SolidColorBrush x:Key="PanelBrush" Color="{StaticResource Panel}" />
         <SolidColorBrush x:Key="SurfaceBrush" Color="{StaticResource Surface}" />
@@ -37,7 +37,7 @@
             <Setter Property="VerticalContentAlignment" Value="Center" />
             <Setter Property="FontSize" Value="12" />
             <Setter Property="Height" Value="34" />
-            <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="{x:Type TextBox}"><Border x:Name="SearchSurface" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="7"><Grid><Path Data="M10,4A6,6 0,1 0,10,16A6,6 0,0 0,10,4M14.5,14.5L20,20" Stroke="#FF9FB0C5" StrokeThickness="1.6" StrokeStartLineCap="Round" StrokeEndLineCap="Round" Margin="10,0,0,0" HorizontalAlignment="Left" VerticalAlignment="Center" Width="20" Height="20" /><ScrollViewer x:Name="PART_ContentHost" Margin="39,0,10,0" VerticalContentAlignment="{TemplateBinding VerticalContentAlignment}" /><TextBlock x:Name="Watermark" Text="{TemplateBinding Tag}" Foreground="#FF8494A9" FontSize="12" VerticalAlignment="Center" Margin="39,0,10,0" IsHitTestVisible="False" Visibility="Collapsed" /></Grid></Border><ControlTemplate.Triggers><Trigger Property="Text" Value=""><Setter TargetName="Watermark" Property="Visibility" Value="Visible" /></Trigger><Trigger Property="IsMouseOver" Value="True"><Setter TargetName="SearchSurface" Property="BorderBrush" Value="#FF5A6A83" /></Trigger><Trigger Property="IsKeyboardFocused" Value="True"><Setter TargetName="SearchSurface" Property="BorderBrush" Value="{StaticResource AccentBrush}" /></Trigger></ControlTemplate.Triggers></ControlTemplate></Setter.Value></Setter>
+            <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="{x:Type TextBox}"><Border x:Name="SearchSurface" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="7"><Grid><Path Data="M10,4A6,6 0,1 0,10,16A6,6 0,0 0,10,4M14.5,14.5L20,20" Stroke="#FF9FB0C5" StrokeThickness="1.6" StrokeStartLineCap="Round" StrokeEndLineCap="Round" Margin="10,0,0,0" HorizontalAlignment="Left" VerticalAlignment="Center" Width="20" Height="20" /><ScrollViewer x:Name="PART_ContentHost" Margin="39,0,10,0" VerticalContentAlignment="{TemplateBinding VerticalContentAlignment}" /><TextBlock x:Name="Watermark" Text="{TemplateBinding Tag}" Foreground="#FF8494A9" FontSize="12" VerticalAlignment="Center" Margin="39,0,10,0" IsHitTestVisible="False" Visibility="Collapsed" /></Grid></Border><ControlTemplate.Triggers><Trigger Property="Text" Value=""><Setter TargetName="Watermark" Property="Visibility" Value="Visible" /></Trigger><Trigger Property="IsMouseOver" Value="True"><Setter TargetName="SearchSurface" Property="BorderBrush" Value="{StaticResource AccentBrush}" /></Trigger><Trigger Property="IsKeyboardFocused" Value="True"><Setter TargetName="SearchSurface" Property="BorderBrush" Value="{StaticResource AccentBrush}" /></Trigger></ControlTemplate.Triggers></ControlTemplate></Setter.Value></Setter>
         </Style>
         <Style TargetType="{x:Type TextBlock}">
             <Setter Property="FontFamily" Value="Segoe UI" />
@@ -61,7 +61,7 @@
                             <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
                         </Border>
                         <ControlTemplate.Triggers>
-                            <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Border" Property="Background" Value="{StaticResource SurfaceHoverBrush}" /><Setter TargetName="Border" Property="BorderBrush" Value="#FF52627B" /><Setter Property="Foreground" Value="{StaticResource PrimaryTextBrush}" /></Trigger>
+                            <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Border" Property="Background" Value="{StaticResource SurfaceHoverBrush}" /><Setter TargetName="Border" Property="BorderBrush" Value="{StaticResource AccentBrush}" /><Setter Property="Foreground" Value="{StaticResource PrimaryTextBrush}" /></Trigger>
                             <Trigger Property="IsPressed" Value="True"><Setter TargetName="Border" Property="Background" Value="#FF202735" /><Setter TargetName="Border" Property="BorderBrush" Value="{StaticResource AccentBrush}" /><Setter Property="Foreground" Value="White" /></Trigger>
                             <Trigger Property="IsKeyboardFocused" Value="True"><Setter TargetName="Border" Property="BorderBrush" Value="{StaticResource AccentBrush}" /></Trigger>
                         </ControlTemplate.Triggers>
@@ -70,13 +70,13 @@
             </Setter>
         </Style>
         <Style x:Key="PrimaryButton" TargetType="{x:Type Button}">
-            <Setter Property="Foreground" Value="White" />
+            <Setter Property="Foreground" Value="#FF10131A" />
             <Setter Property="Background" Value="{StaticResource AccentBrush}" />
-            <Setter Property="BorderBrush" Value="#FF6AA6FF" />
+            <Setter Property="BorderBrush" Value="#FFD2FF32" />
             <Setter Property="BorderThickness" Value="2" />
             <Setter Property="Padding" Value="15,7" />
             <Setter Property="FontWeight" Value="SemiBold" />
-            <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="{x:Type Button}"><Border x:Name="PrimaryBorder" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="10" SnapsToDevicePixels="True"><ContentPresenter Margin="{TemplateBinding Padding}" HorizontalAlignment="Center" VerticalAlignment="Center" /></Border><ControlTemplate.Triggers><Trigger Property="IsMouseOver" Value="True"><Setter TargetName="PrimaryBorder" Property="Background" Value="#FF5694F7" /></Trigger><Trigger Property="IsPressed" Value="True"><Setter TargetName="PrimaryBorder" Property="Background" Value="#FF2568C8" /></Trigger></ControlTemplate.Triggers></ControlTemplate></Setter.Value></Setter>
+            <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="{x:Type Button}"><Border x:Name="PrimaryBorder" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="10" SnapsToDevicePixels="True"><ContentPresenter Margin="{TemplateBinding Padding}" HorizontalAlignment="Center" VerticalAlignment="Center" /></Border><ControlTemplate.Triggers><Trigger Property="IsMouseOver" Value="True"><Setter TargetName="PrimaryBorder" Property="Background" Value="#FFD2FF32" /></Trigger><Trigger Property="IsPressed" Value="True"><Setter TargetName="PrimaryBorder" Property="Background" Value="#FF9FDD17" /></Trigger></ControlTemplate.Triggers></ControlTemplate></Setter.Value></Setter>
         </Style>
     </Application.Resources>
 </Application>

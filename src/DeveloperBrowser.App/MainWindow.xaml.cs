@@ -95,7 +95,7 @@ public partial class MainWindow : Window
         };
         Loaded += async (_, _) =>
         {
-            await CreateTabAsync("https://www.google.com");
+            await CreateTabAsync("https://thedevbrowser.com");
             await _bookmarkManager.RefreshAsync();
             await StartUpdateChecksAsync();
         };
@@ -217,7 +217,7 @@ public partial class MainWindow : Window
         };
         await browser.CoreWebView2.AddScriptToExecuteOnDocumentCreatedAsync(BrowserInstrumentation.ConsoleForwarderScript);
         await _networkCapture.AttachAsync(browser.CoreWebView2);
-        if (navigate) browser.Source = ToAddress(address ?? "https://www.google.com");
+        if (navigate) browser.Source = ToAddress(address ?? "https://thedevbrowser.com");
         return tab;
     }
 

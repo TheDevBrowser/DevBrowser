@@ -69,7 +69,7 @@
             <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}" />
             <Setter Property="BorderThickness" Value="1" />
             <Setter Property="Padding" Value="11,7" />
-            <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="Button"><Border x:Name="ButtonSurface" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="7"><ContentPresenter Margin="{TemplateBinding Padding}" HorizontalAlignment="Center" VerticalAlignment="Center" /></Border><ControlTemplate.Triggers><Trigger Property="IsMouseOver" Value="True"><Setter TargetName="ButtonSurface" Property="Background" Value="{StaticResource SurfaceHoverBrush}" /><Setter TargetName="ButtonSurface" Property="BorderBrush" Value="#FF5A6A83" /></Trigger></ControlTemplate.Triggers></ControlTemplate></Setter.Value></Setter>
+            <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="Button"><Border x:Name="ButtonSurface" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="7"><ContentPresenter Margin="{TemplateBinding Padding}" HorizontalAlignment="Center" VerticalAlignment="Center" /></Border><ControlTemplate.Triggers><Trigger Property="IsMouseOver" Value="True"><Setter TargetName="ButtonSurface" Property="Background" Value="{StaticResource SurfaceHoverBrush}" /><Setter TargetName="ButtonSurface" Property="BorderBrush" Value="{StaticResource AccentBrush}" /></Trigger></ControlTemplate.Triggers></ControlTemplate></Setter.Value></Setter>
         </Style>
         <Style x:Key="FooterUpdateButton" TargetType="Button" BasedOn="{StaticResource PrimaryButton}">
             <Setter Property="Padding" Value="11,5" />
@@ -85,7 +85,7 @@
             <Setter Property="Width" Value="72" />
             <Setter Property="Height" Value="68" />
             <Setter Property="Margin" Value="0,3" />
-            <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="Button"><Border x:Name="NavSurface" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="10"><ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" /></Border><ControlTemplate.Triggers><Trigger Property="IsMouseOver" Value="True"><Setter TargetName="NavSurface" Property="Background" Value="{StaticResource SurfaceHoverBrush}" /><Setter TargetName="NavSurface" Property="BorderBrush" Value="#FF526A8B" /><Setter Property="Foreground" Value="{StaticResource PrimaryTextBrush}" /></Trigger><Trigger Property="IsPressed" Value="True"><Setter TargetName="NavSurface" Property="Background" Value="#FF1D314A" /><Setter TargetName="NavSurface" Property="BorderBrush" Value="{StaticResource AccentBrush}" /></Trigger></ControlTemplate.Triggers></ControlTemplate></Setter.Value></Setter>
+            <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="Button"><Border x:Name="NavSurface" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="10"><ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" /></Border><ControlTemplate.Triggers><Trigger Property="IsMouseOver" Value="True"><Setter TargetName="NavSurface" Property="Background" Value="{StaticResource SurfaceHoverBrush}" /><Setter TargetName="NavSurface" Property="BorderBrush" Value="{StaticResource AccentBrush}" /><Setter Property="Foreground" Value="{StaticResource PrimaryTextBrush}" /></Trigger><Trigger Property="IsPressed" Value="True"><Setter TargetName="NavSurface" Property="Background" Value="#FF26330F" /><Setter TargetName="NavSurface" Property="BorderBrush" Value="{StaticResource AccentBrush}" /></Trigger></ControlTemplate.Triggers></ControlTemplate></Setter.Value></Setter>
         </Style>
         <Style x:Key="MoreMenuStyle" TargetType="ContextMenu">
             <Setter Property="Background" Value="#FF182231" />
@@ -125,7 +125,7 @@
             <DockPanel Margin="12,11">
                 <StackPanel DockPanel.Dock="Top">
                     <Border Background="Transparent" Width="72" Height="46" CornerRadius="14" Margin="0,0,0,16" ToolTip="DevBrowser">
-                        <Image Source="{StaticResource DevBrowserIcon}" Width="34" Height="34" Stretch="Uniform" SnapsToDevicePixels="True" />
+                        <Image Source="Assets/devbrowser-website-mark-64.png" Width="40" Height="40" Stretch="Uniform" SnapsToDevicePixels="True" />
                     </Border>
                     <Button Style="{StaticResource SidebarNavButton}" ToolTip="Browser" Click="ShowBrowserWorkspace_Click"><StackPanel><Viewbox Width="21" Height="21" HorizontalAlignment="Center"><Path Data="M10,20V14H14V20H19V12H22L12,3L2,12H5V20H10Z" Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" /></Viewbox><TextBlock Text="Browser" Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" FontSize="10" FontWeight="SemiBold" HorizontalAlignment="Center" Margin="0,5,0,0" /></StackPanel></Button>
                     <Button Style="{StaticResource SidebarNavButton}" ToolTip="REST client" Click="ShowRestWorkspace_Click">
@@ -155,7 +155,7 @@ M15.5,3H17.5C18.9,3 20,4.1 20,5.5V9C20,10.1 20.9,11 22,11V13C20.9,13 20,13.9 20,
                 <Border Grid.Column="1" Background="{StaticResource SurfaceBrush}" CornerRadius="12" Margin="18,0" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1">
                     <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="42" /><ColumnDefinition Width="*" /><ColumnDefinition Width="46" /></Grid.ColumnDefinitions>
                         <TextBlock Text="⌕" FontFamily="Segoe UI Symbol" Foreground="{StaticResource MutedTextBrush}" FontSize="18" HorizontalAlignment="Center" VerticalAlignment="Center" />
-                        <TextBox x:Name="AddressBar" Grid.Column="1" BorderThickness="0" Background="Transparent" Padding="8,8" FontSize="14" Text="https://www.google.com" VerticalContentAlignment="Center" KeyDown="AddressBar_KeyDown" MouseDoubleClick="AddressBar_MouseDoubleClick" />
+                        <TextBox x:Name="AddressBar" Grid.Column="1" BorderThickness="0" Background="Transparent" Padding="8,8" FontSize="14" Text="https://thedevbrowser.com" VerticalContentAlignment="Center" KeyDown="AddressBar_KeyDown" MouseDoubleClick="AddressBar_MouseDoubleClick" />
                         <TextBlock Grid.Column="2" Text="⌁" Foreground="{StaticResource AccentBrush}" FontSize="20" HorizontalAlignment="Center" VerticalAlignment="Center" />
                     </Grid>
                 </Border>

@@ -164,7 +164,7 @@ public partial class RestClientView : UserControl
     private void CreateRequestTab()
     {
         CaptureActiveTab();
-        var tab = new RestRequestTab { Url = _requestTabs.Count == 0 ? "https://api.github.com/repos/dotnet/runtime" : string.Empty };
+        var tab = new RestRequestTab { Url = _requestTabs.Count == 0 ? "https://thedevbrowser.com/api/space/planets" : string.Empty };
         AddRequestTab(tab);
     }
 

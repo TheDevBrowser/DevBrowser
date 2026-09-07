@@ -24,9 +24,9 @@
                             </Grid>
                         </Border>
                         <ControlTemplate.Triggers>
-                            <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Card" Property="BorderBrush" Value="#FF607694" /><Setter TargetName="Card" Property="Background" Value="#FF252E3D" /></Trigger>
-                            <Trigger Property="IsChecked" Value="True"><Setter TargetName="Card" Property="BorderBrush" Value="{StaticResource AccentBrush}" /><Setter TargetName="Card" Property="Background" Value="#FF1B304D" /><Setter TargetName="Ring" Property="Stroke" Value="{StaticResource AccentBrush}" /><Setter TargetName="Dot" Property="Visibility" Value="Visible" /></Trigger>
-                            <Trigger Property="IsKeyboardFocused" Value="True"><Setter TargetName="Card" Property="BorderBrush" Value="#FF78ADFF" /></Trigger>
+                            <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Card" Property="BorderBrush" Value="{StaticResource AccentBrush}" /><Setter TargetName="Card" Property="Background" Value="#FF252E3D" /></Trigger>
+                            <Trigger Property="IsChecked" Value="True"><Setter TargetName="Card" Property="BorderBrush" Value="{StaticResource AccentBrush}" /><Setter TargetName="Card" Property="Background" Value="#FF26330F" /><Setter TargetName="Ring" Property="Stroke" Value="{StaticResource AccentBrush}" /><Setter TargetName="Dot" Property="Visibility" Value="Visible" /></Trigger>
+                            <Trigger Property="IsKeyboardFocused" Value="True"><Setter TargetName="Card" Property="BorderBrush" Value="{StaticResource AccentBrush}" /></Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
                 </Setter.Value>
@@ -46,7 +46,7 @@
                             <ContentPresenter Margin="{TemplateBinding Padding}" HorizontalAlignment="Center" VerticalAlignment="Center" />
                         </Border>
                         <ControlTemplate.Triggers>
-                            <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Surface" Property="Background" Value="{StaticResource SurfaceHoverBrush}" /><Setter TargetName="Surface" Property="BorderBrush" Value="#FF607694" /></Trigger>
+                            <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Surface" Property="Background" Value="{StaticResource SurfaceHoverBrush}" /><Setter TargetName="Surface" Property="BorderBrush" Value="{StaticResource AccentBrush}" /></Trigger>
                             <Trigger Property="IsPressed" Value="True"><Setter TargetName="Surface" Property="Background" Value="#FF202735" /></Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -64,8 +64,8 @@
         </Grid.RowDefinitions>
 
         <StackPanel Orientation="Horizontal">
-            <Border Width="34" Height="34" CornerRadius="9" Background="#FF1B3A61" Margin="0,0,12,0">
-                <TextBlock Text="!" Foreground="#FF78ADFF" FontSize="19" FontWeight="Bold" HorizontalAlignment="Center" VerticalAlignment="Center" />
+            <Border Width="34" Height="34" CornerRadius="9" Background="#FF26330F" Margin="0,0,12,0">
+                <TextBlock Text="!" Foreground="{StaticResource AccentBrush}" FontSize="19" FontWeight="Bold" HorizontalAlignment="Center" VerticalAlignment="Center" />
             </Border>
             <TextBlock Text="Share anonymous diagnostics?" FontSize="20" FontWeight="SemiBold" VerticalAlignment="Center" />
         </StackPanel>
