@@ -4,10 +4,10 @@ A developer-focused browser for Windows.
 
 ## Features
 
-- Web browsing with multiple tabs
-- REST client
+- Web browsing
+- Built in and integrated REST client
 - Network and storage inspection
-- HAR capture
+- HAR capture and inspection
 - Bookmarks and history
 
 ## Requirements
