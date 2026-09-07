@@ -63,10 +63,15 @@ jobs:
           $displayVersion = "$major.$minor.$patch"
           if ($betaNumber) { $displayVersion += "-beta.$betaNumber" }
 
+          $downloadBaseUri = "https://github.com/TheDevBrowser/DevBrowser/releases/latest/download"
+          if ($betaNumber) {
+            $downloadBaseUri = "https://github.com/TheDevBrowser/DevBrowser/releases/download/$tag"
+          }
+
           $manifestPath = "src\DeveloperBrowser.Package\Package.appxmanifest"
           $installerPath = "src\DeveloperBrowser.Package\DevBrowser.appinstaller"
           (Get-Content $manifestPath -Raw).Replace('__MSIX_PUBLISHER__', $env:MSIX_PUBLISHER).Replace('Version="1.0.0.0"', "Version=`"$version`"") | Set-Content $manifestPath -NoNewline
-          (Get-Content $installerPath -Raw).Replace('__MSIX_PUBLISHER__', $env:MSIX_PUBLISHER).Replace('__MSIX_VERSION__', $version) | Set-Content $installerPath -NoNewline
+          (Get-Content $installerPath -Raw).Replace('__MSIX_PUBLISHER__', $env:MSIX_PUBLISHER).Replace('__MSIX_VERSION__', $version).Replace('__APPINSTALLER_URI__', "$downloadBaseUri/DevBrowser.appinstaller").Replace('__MSIX_URI__', "$downloadBaseUri/DevBrowser.msix") | Set-Content $installerPath -NoNewline
           "MSIX_VERSION=$version" | Out-File -FilePath $env:GITHUB_ENV -Append
           "DEVBROWSER_VERSION=$displayVersion" | Out-File -FilePath $env:GITHUB_ENV -Append
 

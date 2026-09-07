@@ -24,7 +24,9 @@ Never commit the `.pfx` file or its password. The workflow reads the publisher i
 
 Use the stable GitHub Releases download link for installation:
 
-`https://github.com/RezaHoque/DevBrowser/releases/latest/download/DevBrowser.appinstaller`
+`https://github.com/TheDevBrowser/DevBrowser/releases/latest/download/DevBrowser.appinstaller`
+
+Beta releases use tag-specific installer URLs because GitHub's `latest` release endpoint excludes pre-releases. Install each newer beta manually from its release page. Stable releases use the `latest` URL and retain automatic updates.
 
 The App Installer manifest checks for updates every six hours. DevBrowser also checks at startup and every six hours while it is open, then offers **Relaunch to update** from its status bar.
 

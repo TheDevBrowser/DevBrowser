@@ -8,7 +8,7 @@ namespace DeveloperBrowser.App.Updates;
 
 public sealed class AppInstallerUpdateService : IAppUpdateService
 {
-    private static readonly Uri AppInstallerUri = new("https://github.com/RezaHoque/DevBrowser/releases/latest/download/DevBrowser.appinstaller");
+    private static readonly Uri AppInstallerUri = new("https://github.com/TheDevBrowser/DevBrowser/releases/latest/download/DevBrowser.appinstaller");
     private readonly ILogger _logger = Log.ForContext<AppInstallerUpdateService>();
     private AppUpdateStatus _status = new(AppUpdateState.Unsupported, "Updates are available in installed releases.");
 
