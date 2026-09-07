@@ -74,7 +74,7 @@ jobs:
         shell: pwsh
         run: |
           dotnet restore DeveloperBrowser.slnx
-          dotnet build DeveloperBrowser.slnx --configuration Release --no-restore -p:Platform=x64 -p:DevBrowserVersion=$env:DEVBROWSER_VERSION
+          dotnet build DeveloperBrowser.slnx --configuration Release --no-restore -p:DevBrowserVersion=$env:DEVBROWSER_VERSION
 
       - name: Build unsigned MSIX package
         shell: pwsh
