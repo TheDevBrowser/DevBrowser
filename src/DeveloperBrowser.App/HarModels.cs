@@ -1,5 +1,6 @@
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
+using System.Text.Json;
 using System.Text.Json.Serialization;
 
 namespace DeveloperBrowser.App;
@@ -22,10 +23,34 @@ public sealed class HarEntry : INotifyPropertyChanged
     public string HttpVersion { get; set; } = "HTTP/1.1";
     public Dictionary<string, string> RequestHeaders { get; } = new(StringComparer.OrdinalIgnoreCase);
     public Dictionary<string, string> ResponseHeaders { get; } = new(StringComparer.OrdinalIgnoreCase);
+    public List<HarHeader> RequestHeaderItems { get; } = [];
+    public List<HarHeader> ResponseHeaderItems { get; } = [];
+    public List<HarCookie> RequestCookieItems { get; } = [];
+    public List<HarCookie> ResponseCookieItems { get; } = [];
+    public List<HarHeader> QueryItems { get; } = [];
     public string? RequestBody { get; init; }
     public string? MimeType { get; set; }
+    public string StatusDescription { get; set; } = string.Empty;
+    public string RedirectUrl { get; set; } = string.Empty;
     public string? RemoteAddress { get; set; }
     public int? RemotePort { get; set; }
+    public HarTimings Timings { get; set; } = new();
+    public double? MonotonicStartedAt { get; set; }
+    public double? ResponseHeadersEndMs { get; set; }
+    public string? OriginalEntryJson { get; set; }
+    public bool ResponseBodyWasBase64 { get; set; }
+    public bool IsBinaryResponse { get; set; }
+    public string? EncodedResponseBody { get; set; }
+    public long RequestHeadersSize { get; set; } = -1;
+    public long RequestBodySize { get; set; } = -1;
+    public long ResponseHeadersSize { get; set; } = -1;
+    public long ResponseBodySize { get; set; } = -1;
+    public long DecodedContentSize { get; set; } = -1;
+    public long CompressionSavings { get; set; } = -1;
+    public string CacheSource { get; set; } = string.Empty;
+    public Dictionary<string, JsonElement> CacheMetadata { get; set; } = [];
+    public List<string> RedirectChain { get; } = [];
+    public int RedirectStep { get; set; }
     public int Status { get => _status; set { SetField(ref _status, value); OnPropertyChanged(nameof(StatusText)); OnPropertyChanged(nameof(IsFailed)); OnPropertyChanged(nameof(IsRedirect)); } }
     public double DurationMs { get => _durationMs; set { SetField(ref _durationMs, Math.Max(0, value)); OnPropertyChanged(nameof(DurationText)); } }
     public long TransferSize { get => _transferSize; set { SetField(ref _transferSize, Math.Max(0, value)); OnPropertyChanged(nameof(SizeText)); } }
@@ -39,6 +64,10 @@ public sealed class HarEntry : INotifyPropertyChanged
     public string Domain => Uri.TryCreate(Url, UriKind.Absolute, out var uri) ? uri.Host : "—";
     public string ContentType => !string.IsNullOrWhiteSpace(MimeType) ? MimeType : Header("Content-Type", ResponseHeaders);
     public string RequestContentType => Header("Content-Type", RequestHeaders);
+    public IEnumerable<KeyValuePair<string, string>> OrderedRequestHeaders => RequestHeaderItems.Count > 0 ? RequestHeaderItems.Select(item => new KeyValuePair<string, string>(item.Name, item.Value)) : RequestHeaders;
+    public IEnumerable<KeyValuePair<string, string>> OrderedResponseHeaders => ResponseHeaderItems.Count > 0 ? ResponseHeaderItems.Select(item => new KeyValuePair<string, string>(item.Name, item.Value)) : ResponseHeaders;
+    public int RequestHeaderCount => RequestHeaderItems.Count > 0 ? RequestHeaderItems.Count : RequestHeaders.Count;
+    public int ResponseHeaderCount => ResponseHeaderItems.Count > 0 ? ResponseHeaderItems.Count : ResponseHeaders.Count;
 
     public CapturedNetworkRequest ToCapturedRequest() => new()
     {
@@ -55,6 +84,11 @@ public sealed class HarEntry : INotifyPropertyChanged
 
     public IEnumerable<KeyValuePair<string, string>> QueryParameters()
     {
+        if (QueryItems.Count > 0)
+        {
+            foreach (var item in QueryItems) yield return new KeyValuePair<string, string>(item.Name, item.Value);
+            yield break;
+        }
         if (!Uri.TryCreate(Url, UriKind.Absolute, out var uri) || string.IsNullOrWhiteSpace(uri.Query)) yield break;
         foreach (var item in uri.Query.TrimStart('?').Split('&', StringSplitOptions.RemoveEmptyEntries))
         {
@@ -89,7 +123,7 @@ public sealed class HarFileEntry
     [JsonPropertyName("time")] public double Time { get; set; }
     [JsonPropertyName("request")] public HarRequest Request { get; set; } = new();
     [JsonPropertyName("response")] public HarResponse Response { get; set; } = new();
-    [JsonPropertyName("cache")] public Dictionary<string, object?> Cache { get; set; } = [];
+    [JsonPropertyName("cache")] public Dictionary<string, JsonElement> Cache { get; set; } = [];
     [JsonPropertyName("timings")] public HarTimings Timings { get; set; } = new();
     [JsonPropertyName("_resourceType")] public string? ResourceType { get; set; }
     [JsonPropertyName("_failure")] public string? Failure { get; set; }
@@ -121,7 +155,28 @@ public sealed class HarResponse
     [JsonPropertyName("bodySize")] public long BodySize { get; set; } = -1;
 }
 public sealed class HarHeader { [JsonPropertyName("name")] public string Name { get; set; } = string.Empty; [JsonPropertyName("value")] public string Value { get; set; } = string.Empty; }
-public sealed class HarCookie { [JsonPropertyName("name")] public string Name { get; set; } = string.Empty; [JsonPropertyName("value")] public string Value { get; set; } = string.Empty; }
+public sealed class HarCookie
+{
+    [JsonPropertyName("name")] public string Name { get; set; } = string.Empty;
+    [JsonPropertyName("value")] public string Value { get; set; } = string.Empty;
+    [JsonPropertyName("path")] public string? Path { get; set; }
+    [JsonPropertyName("domain")] public string? Domain { get; set; }
+    [JsonPropertyName("expires")] public DateTimeOffset? Expires { get; set; }
+    [JsonPropertyName("httpOnly")] public bool? HttpOnly { get; set; }
+    [JsonPropertyName("secure")] public bool? Secure { get; set; }
+    [JsonPropertyName("sameSite")] public string? SameSite { get; set; }
+    [JsonExtensionData] public Dictionary<string, JsonElement>? AdditionalData { get; set; }
+}
 public sealed class HarPostData { [JsonPropertyName("mimeType")] public string MimeType { get; set; } = string.Empty; [JsonPropertyName("text")] public string? Text { get; set; } }
-public sealed class HarContent { [JsonPropertyName("size")] public long Size { get; set; } = -1; [JsonPropertyName("mimeType")] public string MimeType { get; set; } = string.Empty; [JsonPropertyName("text")] public string? Text { get; set; } [JsonPropertyName("encoding")] public string? Encoding { get; set; } }
-public sealed class HarTimings { [JsonPropertyName("send")] public double Send { get; set; } = 0; [JsonPropertyName("wait")] public double Wait { get; set; } = -1; [JsonPropertyName("receive")] public double Receive { get; set; } = 0; }
+public sealed class HarContent { [JsonPropertyName("size")] public long Size { get; set; } = -1; [JsonPropertyName("compression")] public long? Compression { get; set; } [JsonPropertyName("mimeType")] public string MimeType { get; set; } = string.Empty; [JsonPropertyName("text")] public string? Text { get; set; } [JsonPropertyName("encoding")] public string? Encoding { get; set; } }
+public sealed class HarTimings
+{
+    [JsonPropertyName("blocked")] public double Blocked { get; set; } = -1;
+    [JsonPropertyName("dns")] public double Dns { get; set; } = -1;
+    [JsonPropertyName("connect")] public double Connect { get; set; } = -1;
+    [JsonPropertyName("ssl")] public double Ssl { get; set; } = -1;
+    [JsonPropertyName("send")] public double Send { get; set; } = -1;
+    [JsonPropertyName("wait")] public double Wait { get; set; } = -1;
+    [JsonPropertyName("receive")] public double Receive { get; set; } = -1;
+    [JsonPropertyName("comment")] public string? Comment { get; set; }
+}

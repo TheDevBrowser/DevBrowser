@@ -44,9 +44,16 @@
         </WrapPanel>
         <TabControl Grid.Row="1" MinHeight="0">
             <TabItem Header="Pretty">
-                <TextBox x:Name="PrettyBox" Margin="0,6,0,0" IsReadOnly="True" AcceptsReturn="True"
-                         TextWrapping="NoWrap" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto"
-                         FontFamily="Cascadia Mono" FontSize="12" />
+                <Grid Margin="0,6,0,0">
+                    <TextBox x:Name="PrettyBox" IsReadOnly="True" AcceptsReturn="True"
+                             TextWrapping="NoWrap" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto"
+                             FontFamily="Cascadia Mono" FontSize="12" />
+                    <RichTextBox x:Name="HtmlPrettyBox" Visibility="Collapsed" IsReadOnly="True"
+                                 VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto"
+                                 FontFamily="Cascadia Mono" FontSize="12" Background="{StaticResource SurfaceBrush}"
+                                 Foreground="{StaticResource PrimaryTextBrush}" BorderBrush="{StaticResource BorderBrush}"
+                                 Padding="12,7" />
+                </Grid>
             </TabItem>
             <TabItem Header="Raw">
                 <TextBox x:Name="RawBox" Margin="0,6,0,0" IsReadOnly="True" AcceptsReturn="True"

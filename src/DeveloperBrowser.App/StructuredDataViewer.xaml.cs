@@ -1,8 +1,12 @@
 using System.Text.Json;
+using System.Text;
 using System.IO;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
+using System.Windows.Documents;
+using System.Windows.Media;
+using System.Text.RegularExpressions;
 using System.Xml;
 using System.Xml.Linq;
 
@@ -24,6 +28,8 @@ public partial class StructuredDataViewer : UserControl
         _raw = content ?? string.Empty;
         RawBox.Text = _raw;
         _kind = DetectKind(_raw, contentType);
+        PrettyBox.Visibility = Visibility.Visible;
+        HtmlPrettyBox.Visibility = Visibility.Collapsed;
         TreeTab.Visibility = Visibility.Visible;
 
         if (string.IsNullOrWhiteSpace(_raw))
@@ -50,13 +56,20 @@ public partial class StructuredDataViewer : UserControl
             {
                 StructuredDataKind.Json => FormatJson(_raw, false),
                 StructuredDataKind.Xml => FormatXml(_raw, false),
+                StructuredDataKind.Html => FormatHtml(_raw),
                 _ => _raw
             };
             PrettyBox.Text = _pretty;
+            if (_kind == StructuredDataKind.Html)
+            {
+                PrettyBox.Visibility = Visibility.Collapsed;
+                HtmlPrettyBox.Visibility = Visibility.Visible;
+                ShowHighlightedHtml(_pretty);
+            }
             if (_kind == StructuredDataKind.Json) TreeView.SetJson(_raw);
             else if (_kind == StructuredDataKind.Xml) TreeView.SetXml(_raw);
             else TreeTab.Visibility = Visibility.Collapsed;
-            InfoText.Text = _kind switch { StructuredDataKind.Json => "JSON", StructuredDataKind.Xml => "XML", _ => "Text" };
+            InfoText.Text = _kind switch { StructuredDataKind.Json => "JSON", StructuredDataKind.Xml => "XML", StructuredDataKind.Html => "HTML", _ => "Text" };
         }
         catch (Exception) when (_kind is StructuredDataKind.Json or StructuredDataKind.Xml)
         {
@@ -72,7 +85,8 @@ public partial class StructuredDataViewer : UserControl
 
     private void Format_Click(object sender, RoutedEventArgs e)
     {
-        if (_kind is StructuredDataKind.Json or StructuredDataKind.Xml) SetContent(_pretty, _kind == StructuredDataKind.Json ? "application/json" : "application/xml");
+        if (_kind is StructuredDataKind.Json or StructuredDataKind.Xml or StructuredDataKind.Html)
+            SetContent(_pretty, _kind == StructuredDataKind.Json ? "application/json" : _kind == StructuredDataKind.Xml ? "application/xml" : "text/html");
     }
 
     private void Minify_Click(object sender, RoutedEventArgs e)
@@ -128,10 +142,12 @@ public partial class StructuredDataViewer : UserControl
         if (!string.IsNullOrWhiteSpace(contentType))
         {
             if (contentType.Contains("json", StringComparison.OrdinalIgnoreCase)) return StructuredDataKind.Json;
+            if (contentType.Contains("html", StringComparison.OrdinalIgnoreCase)) return StructuredDataKind.Html;
             if (contentType.Contains("xml", StringComparison.OrdinalIgnoreCase)) return StructuredDataKind.Xml;
         }
         var trimmed = content.TrimStart();
         if (trimmed.StartsWith('{') || trimmed.StartsWith('[')) return StructuredDataKind.Json;
+        if (Regex.IsMatch(trimmed, @"^<!doctype\s+html|^<html(?:\s|>)", RegexOptions.IgnoreCase)) return StructuredDataKind.Html;
         if (trimmed.StartsWith('<')) return StructuredDataKind.Xml;
         return StructuredDataKind.Text;
     }
@@ -152,5 +168,61 @@ public partial class StructuredDataViewer : UserControl
         return writer.ToString();
     }
 
-    private enum StructuredDataKind { Text, Json, Xml }
+    private static string FormatHtml(string content)
+    {
+        var compact = Regex.Replace(content, @">\s*<", "><").Trim();
+        var output = new StringBuilder();
+        var depth = 0;
+        foreach (Match match in Regex.Matches(compact, @"<!--[\s\S]*?-->|<![^>]*>|<[^>]+>|[^<]+"))
+        {
+            var token = match.Value.Trim();
+            if (token.Length == 0) continue;
+            var closing = token.StartsWith("</", StringComparison.Ordinal);
+            if (closing) depth = Math.Max(0, depth - 1);
+            if (output.Length > 0) output.AppendLine();
+            output.Append(' ', depth * 2).Append(token);
+            if (token.StartsWith('<') && !closing && !token.StartsWith("<!", StringComparison.Ordinal) &&
+                !token.EndsWith("/>", StringComparison.Ordinal) && !Regex.IsMatch(token, @"^<(area|base|br|col|embed|hr|img|input|link|meta|param|source|track|wbr)\b", RegexOptions.IgnoreCase))
+                depth++;
+        }
+        return output.ToString();
+    }
+
+    private void ShowHighlightedHtml(string html)
+    {
+        var document = new FlowDocument { PagePadding = new Thickness(0), FontFamily = new FontFamily("Cascadia Mono"), FontSize = 12 };
+        var paragraph = new Paragraph { Margin = new Thickness(0) };
+        var pattern = @"<!--[\s\S]*?-->|</?[A-Za-z][^>]*>|[^<]+";
+        foreach (Match token in Regex.Matches(html, pattern))
+        {
+            if (token.Value.StartsWith("<!--", StringComparison.Ordinal))
+                paragraph.Inlines.Add(new Run(token.Value) { Foreground = new SolidColorBrush(Color.FromRgb(106, 153, 85)) });
+            else if (token.Value.StartsWith('<'))
+                AddHighlightedTag(paragraph, token.Value);
+            else
+                paragraph.Inlines.Add(new Run(token.Value) { Foreground = new SolidColorBrush(Color.FromRgb(220, 225, 232)) });
+        }
+        document.Blocks.Add(paragraph);
+        HtmlPrettyBox.Document = document;
+    }
+
+    private static void AddHighlightedTag(Paragraph paragraph, string tag)
+    {
+        var position = 0;
+        foreach (Match attribute in Regex.Matches(tag, "\\s+[A-Za-z_:][-A-Za-z0-9_:.]*(?:\\s*=\\s*(?:\"[^\"]*\"|'[^']*'|[^\\s>]+))?"))
+        {
+            if (attribute.Index > position) paragraph.Inlines.Add(new Run(tag[position..attribute.Index]) { Foreground = new SolidColorBrush(Color.FromRgb(86, 156, 214)) });
+            var equals = attribute.Value.IndexOf('=');
+            if (equals < 0) paragraph.Inlines.Add(new Run(attribute.Value) { Foreground = new SolidColorBrush(Color.FromRgb(156, 220, 254)) });
+            else
+            {
+                paragraph.Inlines.Add(new Run(attribute.Value[..(equals + 1)]) { Foreground = new SolidColorBrush(Color.FromRgb(156, 220, 254)) });
+                paragraph.Inlines.Add(new Run(attribute.Value[(equals + 1)..]) { Foreground = new SolidColorBrush(Color.FromRgb(206, 145, 120)) });
+            }
+            position = attribute.Index + attribute.Length;
+        }
+        if (position < tag.Length) paragraph.Inlines.Add(new Run(tag[position..]) { Foreground = new SolidColorBrush(Color.FromRgb(86, 156, 214)) });
+    }
+
+    private enum StructuredDataKind { Text, Json, Xml, Html }
 }

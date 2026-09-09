@@ -299,7 +299,7 @@ public partial class RestClientView : UserControl
 
     private static readonly string[] Methods = ["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"];
     private static string TitleFor(string url) => Uri.TryCreate(url, UriKind.Absolute, out var uri) ? uri.Host.Replace("www.", "", StringComparison.OrdinalIgnoreCase) : string.IsNullOrWhiteSpace(url) ? "Untitled request" : url;
-    private static Brush MethodBrush(string method) => method switch { "GET" => new SolidColorBrush(Color.FromRgb(88, 214, 141)), "POST" => new SolidColorBrush(Color.FromRgb(93, 173, 226)), "DELETE" => new SolidColorBrush(Color.FromRgb(236, 112, 99)), _ => new SolidColorBrush(Color.FromRgb(245, 176, 65)) };
+    private static Brush MethodBrush(string method) => HttpMethodPalette.Foreground(method);
 
     private Uri BuildUri(string input)
     {
@@ -704,18 +704,7 @@ public partial class RestClientView : UserControl
         return new Viewbox { Width = 14, Height = 14, Child = canvas };
     }
 
-    private static Brush MethodBadgeBrush(string method)
-    {
-        var color = method.ToUpperInvariant() switch
-        {
-            "GET" => Color.FromRgb(20, 77, 67),
-            "POST" => Color.FromRgb(44, 68, 108),
-            "PUT" or "PATCH" => Color.FromRgb(91, 65, 29),
-            "DELETE" => Color.FromRgb(91, 42, 49),
-            _ => Color.FromRgb(53, 65, 82)
-        };
-        return new SolidColorBrush(color);
-    }
+    private static Brush MethodBadgeBrush(string method) => HttpMethodPalette.Background(method);
 
     private static List<CollectionTreeNode> FilterCollectionTreeNodes(IEnumerable<CollectionTreeNode> nodes, string search)
     {

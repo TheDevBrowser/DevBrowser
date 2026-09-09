@@ -1,0 +1,68 @@
+<UserControl x:Class="DeveloperBrowser.App.HarTransactionViewer"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:local="clr-namespace:DeveloperBrowser.App">
+    <UserControl.Resources>
+        <Style x:Key="SectionLabel" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="{StaticResource MutedTextBrush}" /><Setter Property="FontSize" Value="10" />
+            <Setter Property="FontWeight" Value="SemiBold" /><Setter Property="Margin" Value="2,16,0,7" />
+        </Style>
+        <Style x:Key="MetricCard" TargetType="Border">
+            <Setter Property="Background" Value="#FF121A26" /><Setter Property="BorderBrush" Value="#FF35445B" />
+            <Setter Property="BorderThickness" Value="1" /><Setter Property="CornerRadius" Value="8" /><Setter Property="Padding" Value="12" />
+        </Style>
+        <Style TargetType="TabControl">
+            <Setter Property="Background" Value="Transparent" /><Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="TabControl"><Grid><Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions><Border Background="#FF182231" BorderBrush="#FF35445B" BorderThickness="0,0,0,1"><TabPanel IsItemsHost="True" Margin="5,4,5,0" /></Border><ContentPresenter x:Name="PART_SelectedContentHost" Grid.Row="1" ContentSource="SelectedContent" Margin="4,10,4,4" /></Grid></ControlTemplate></Setter.Value></Setter>
+        </Style>
+        <Style TargetType="TabItem">
+            <Setter Property="Foreground" Value="{StaticResource MutedTextBrush}" /><Setter Property="Padding" Value="12,8" />
+            <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="TabItem"><Border x:Name="Surface" Background="Transparent" BorderBrush="Transparent" BorderThickness="0,0,0,2" CornerRadius="5,5,0,0"><ContentPresenter ContentSource="Header" Margin="{TemplateBinding Padding}" /></Border><ControlTemplate.Triggers><Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Surface" Property="Background" Value="#FF253247" /></Trigger><Trigger Property="IsSelected" Value="True"><Setter Property="Foreground" Value="{StaticResource PrimaryTextBrush}" /><Setter TargetName="Surface" Property="Background" Value="#FF26330F" /><Setter TargetName="Surface" Property="BorderBrush" Value="{StaticResource AccentBrush}" /></Trigger></ControlTemplate.Triggers></ControlTemplate></Setter.Value></Setter>
+        </Style>
+    </UserControl.Resources>
+    <TabControl>
+        <TabItem Header="Summary">
+            <ScrollViewer VerticalScrollBarVisibility="Auto"><StackPanel>
+                <Border Style="{StaticResource MetricCard}"><Grid><Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                    <Border x:Name="MethodBadge" CornerRadius="5" Padding="9,5" VerticalAlignment="Top"><TextBlock x:Name="MethodText" FontFamily="Cascadia Mono" FontWeight="Bold" FontSize="11" /></Border>
+                    <StackPanel Grid.Column="1" Margin="11,0"><TextBlock x:Name="SummaryHostText" Foreground="{StaticResource PrimaryTextBrush}" FontWeight="SemiBold" /><TextBox x:Name="SummaryUrlText" IsReadOnly="True" TextWrapping="Wrap" Background="Transparent" BorderThickness="0" Padding="0" Margin="0,5,0,0" FontFamily="Cascadia Mono" FontSize="12" /></StackPanel>
+                    <Border x:Name="StatusBadge" Grid.Column="2" CornerRadius="6" Padding="10,5" VerticalAlignment="Top"><TextBlock x:Name="StatusText" Foreground="White" FontWeight="SemiBold" /></Border>
+                </Grid></Border>
+                <UniformGrid Columns="4" Margin="0,10,0,0">
+                    <Border Style="{StaticResource MetricCard}" Margin="0,0,7,0"><StackPanel><TextBlock Text="TYPE" Style="{StaticResource SectionLabel}" Margin="0" /><TextBlock x:Name="TypeText" Foreground="{StaticResource PrimaryTextBrush}" Margin="0,5,0,0" /></StackPanel></Border>
+                    <Border Style="{StaticResource MetricCard}" Margin="0,0,7,0"><StackPanel><TextBlock Text="DURATION" Style="{StaticResource SectionLabel}" Margin="0" /><TextBlock x:Name="DurationText" Foreground="{StaticResource PrimaryTextBrush}" Margin="0,5,0,0" /></StackPanel></Border>
+                    <Border Style="{StaticResource MetricCard}" Margin="0,0,7,0"><StackPanel><TextBlock Text="TRANSFER" Style="{StaticResource SectionLabel}" Margin="0" /><TextBlock x:Name="SizeText" Foreground="{StaticResource PrimaryTextBrush}" Margin="0,5,0,0" /></StackPanel></Border>
+                    <Border Style="{StaticResource MetricCard}"><StackPanel><TextBlock Text="PROTOCOL" Style="{StaticResource SectionLabel}" Margin="0" /><TextBlock x:Name="ProtocolText" Foreground="{StaticResource PrimaryTextBrush}" Margin="0,5,0,0" /></StackPanel></Border>
+                </UniformGrid>
+                <TextBlock Text="GOOD TO KNOW" Style="{StaticResource SectionLabel}" />
+                <Border Style="{StaticResource MetricCard}"><ItemsControl x:Name="InsightsList"><ItemsControl.ItemTemplate><DataTemplate><Grid Margin="0,4"><Grid.ColumnDefinitions><ColumnDefinition Width="10" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions><Ellipse Fill="{Binding Brush}" Width="6" Height="6" VerticalAlignment="Top" Margin="0,6,0,0" /><TextBlock Grid.Column="1" Text="{Binding Text}" Foreground="{StaticResource PrimaryTextBrush}" TextWrapping="Wrap" /></Grid></DataTemplate></ItemsControl.ItemTemplate></ItemsControl></Border>
+                <TextBlock Text="CONNECTION" Style="{StaticResource SectionLabel}" />
+                <local:KeyValueDataViewer x:Name="ConnectionViewer" MinHeight="80" />
+                <TextBlock Text="CACHE" Style="{StaticResource SectionLabel}" />
+                <local:KeyValueDataViewer x:Name="CacheViewer" MinHeight="80" />
+            </StackPanel></ScrollViewer>
+        </TabItem>
+        <TabItem Header="Request"><local:HttpRequestViewer x:Name="RequestViewer" /></TabItem>
+        <TabItem Header="Response">
+            <ScrollViewer VerticalScrollBarVisibility="Auto"><StackPanel>
+                <Border Style="{StaticResource MetricCard}" Margin="0,0,0,12"><Grid><Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions><Border x:Name="ResponseStatusBadge" CornerRadius="5" Padding="9,5" VerticalAlignment="Top"><TextBlock x:Name="ResponseStatusText" Foreground="White" FontWeight="SemiBold" /></Border><StackPanel Grid.Column="1" Margin="11,0,0,0"><TextBlock x:Name="ResponseTypeText" Foreground="{StaticResource PrimaryTextBrush}" FontWeight="SemiBold" /><TextBlock x:Name="ResponseSummaryText" Foreground="{StaticResource MutedTextBrush}" FontSize="10" Margin="0,3,0,0" /></StackPanel></Grid></Border>
+                <Expander x:Name="ResponseHeadersExpander" Style="{StaticResource InspectorAccordion}" IsExpanded="False"><Expander.Header><Grid><Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions><StackPanel><TextBlock Text="Response headers" Foreground="{StaticResource PrimaryTextBrush}" FontWeight="SemiBold" /><TextBlock Text="Metadata returned by the server" Foreground="{StaticResource MutedTextBrush}" FontSize="10" Margin="0,2,0,0" /></StackPanel><Border Grid.Column="1" Style="{StaticResource InspectorMetaBadge}" VerticalAlignment="Center"><TextBlock x:Name="ResponseHeadersMetaText" Foreground="#FFCFE4FF" FontSize="10" /></Border></Grid></Expander.Header><local:KeyValueDataViewer x:Name="ResponseHeadersViewer" MinHeight="60" /></Expander>
+                <Expander x:Name="ResponseCookiesExpander" Style="{StaticResource InspectorAccordion}" IsExpanded="False"><Expander.Header><Grid><Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions><StackPanel><TextBlock Text="Response cookies" Foreground="{StaticResource PrimaryTextBrush}" FontWeight="SemiBold" /><TextBlock Text="Cookie changes requested by the server" Foreground="{StaticResource MutedTextBrush}" FontSize="10" Margin="0,2,0,0" /></StackPanel><Border Grid.Column="1" Style="{StaticResource InspectorMetaBadge}" VerticalAlignment="Center"><TextBlock x:Name="ResponseCookiesMetaText" Foreground="#FFCFE4FF" FontSize="10" /></Border></Grid></Expander.Header><local:KeyValueDataViewer x:Name="ResponseCookiesViewer" MinHeight="55" /></Expander>
+                <Expander x:Name="ResponseBodyExpander" Style="{StaticResource InspectorAccordion}" IsExpanded="True"><Expander.Header><Grid><Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions><StackPanel><TextBlock Text="Response body" Foreground="{StaticResource PrimaryTextBrush}" FontWeight="SemiBold" /><TextBlock Text="Content returned by the server" Foreground="{StaticResource MutedTextBrush}" FontSize="10" Margin="0,2,0,0" /></StackPanel><Border Grid.Column="1" Style="{StaticResource InspectorMetaBadge}" VerticalAlignment="Center"><TextBlock x:Name="ResponseBodyMetaText" Foreground="#FFCFE4FF" FontSize="10" /></Border></Grid></Expander.Header><local:StructuredDataViewer x:Name="ResponseBodyViewer" Height="360" /></Expander>
+            </StackPanel></ScrollViewer>
+        </TabItem>
+        <TabItem Header="Performance">
+            <ScrollViewer VerticalScrollBarVisibility="Auto"><StackPanel>
+                <TextBlock Text="RECORDED TIMING" Style="{StaticResource SectionLabel}" Margin="2,0,0,7" />
+                <Border Style="{StaticResource MetricCard}"><StackPanel>
+                    <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="110" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions><TextBlock Text="Total duration" Foreground="{StaticResource MutedTextBrush}" /><TextBlock x:Name="PerformanceDurationText" Grid.Column="1" Foreground="{StaticResource PrimaryTextBrush}" FontWeight="SemiBold" /></Grid>
+                    <Border Background="#FF263348" Height="10" CornerRadius="5" Margin="0,13,0,13"><Border x:Name="DurationBar" Background="{StaticResource AccentBrush}" CornerRadius="5" HorizontalAlignment="Left" Width="180" /></Border>
+                    <TextBlock x:Name="TimingExplanationText" Foreground="{StaticResource MutedTextBrush}" TextWrapping="Wrap" FontSize="11" />
+                </StackPanel></Border>
+                <TextBlock Text="CAPTURE DETAILS" Style="{StaticResource SectionLabel}" />
+                <Border Style="{StaticResource MetricCard}" Padding="0"><local:KeyValueDataViewer x:Name="TimingViewer" MinHeight="110" /></Border>
+            </StackPanel></ScrollViewer>
+        </TabItem>
+        <TabItem Header="Raw"><local:StructuredDataViewer x:Name="RawViewer" /></TabItem>
+    </TabControl>
+</UserControl>

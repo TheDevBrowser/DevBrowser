@@ -15,12 +15,25 @@ public partial class NetworkInspectorView : UserControl
     private NetworkCaptureService? _capture;
     private ICollectionView? _requestsView;
     private CapturedNetworkRequest? _selectedRequest;
+    private readonly KeyValueDataViewer _requestHeadersViewer = new() { Margin = new Thickness(0, 10, 0, 0) };
+    private readonly KeyValueDataViewer _responseHeadersViewer = new() { Margin = new Thickness(0, 10, 0, 0) };
+    private readonly KeyValueDataViewer _queryViewer = new() { Margin = new Thickness(0, 10, 0, 0) };
+    private readonly StructuredDataViewer _requestBodyViewer = new() { Margin = new Thickness(0, 10, 0, 0) };
+    private readonly KeyValueDataViewer _cookiesViewer = new() { Margin = new Thickness(0, 10, 0, 0) };
 
     public event EventHandler<CapturedNetworkRequest>? OpenInRestClientRequested;
     public event EventHandler? CloseRequested;
     public event EventHandler<NetworkInspectorDock>? DockRequested;
 
-    public NetworkInspectorView() => InitializeComponent();
+    public NetworkInspectorView()
+    {
+        InitializeComponent();
+        ReplaceTabContent(RequestHeadersBox, _requestHeadersViewer);
+        ReplaceTabContent(ResponseHeadersBox, _responseHeadersViewer);
+        ReplaceTabContent(QueryBox, _queryViewer);
+        ReplaceTabContent(RequestBodyBox, _requestBodyViewer);
+        ReplaceTabContent(CookiesBox, _cookiesViewer);
+    }
 
     public void Initialize(NetworkCaptureService capture)
     {
@@ -122,16 +135,17 @@ public partial class NetworkInspectorView : UserControl
     private void PopulateDetail(CapturedNetworkRequest request)
     {
         DetailMethodText.Text = request.Method;
+        DetailMethodText.Foreground = HttpMethodPalette.Foreground(request.Method);
         DetailUrlText.Text = request.Url;
         DetailStatusText.Text = request.StatusText;
         DetailStatusBadge.Background = new SolidColorBrush(request.IsFailed ? Color.FromRgb(128, 56, 64) : Color.FromRgb(29, 100, 70));
         DetailTimingText.Text = $"{request.ResourceType} · {request.DurationText}";
-        RequestHeadersBox.Text = FormatHeaders(request.RequestHeaders);
-        ResponseHeadersBox.Text = FormatHeaders(request.ResponseHeaders);
-        QueryBox.Text = string.Join(Environment.NewLine, request.QueryParameters().Select(pair => $"{pair.Key}: {pair.Value}"));
-        RequestBodyBox.Text = request.RequestBody ?? "(No request body)";
+        _requestHeadersViewer.SetItems(HttpInspectorFormatting.Headers(request.RequestHeaders), "No request headers");
+        _responseHeadersViewer.SetItems(HttpInspectorFormatting.Headers(request.ResponseHeaders), "No response headers");
+        _queryViewer.SetItems(request.QueryParameters(), "No query parameters");
+        _requestBodyViewer.SetContent(request.RequestBody ?? "(No request body)", request.RequestContentType);
         ResponseDataViewer.SetContent(request.ResponseBody ?? "Loading response body…", request.ResponseContentType);
-        CookiesBox.Text = string.IsNullOrEmpty(request.Cookies()) ? "(No cookies available)" : request.Cookies();
+        _cookiesViewer.SetItems(HttpInspectorFormatting.Cookies(request.RequestHeaders, request.ResponseHeaders), "No cookies available");
         TimingBox.Text = $"Started: {request.StartedAt:0.000}s{Environment.NewLine}Duration: {request.DurationText}{Environment.NewLine}Status: {request.StatusText}{(string.IsNullOrEmpty(request.FailureReason) ? string.Empty : $"{Environment.NewLine}Failure: {request.FailureReason}")}";
         OpenInRestButton.IsEnabled = true;
         JwtInspectButton.IsEnabled = TryGetAuthorizationHeader(request, out var authorizationHeader) && JwtTokenInspector.IsBearerJwt(authorizationHeader);
@@ -142,7 +156,12 @@ public partial class NetworkInspectorView : UserControl
     private void ClearDetail()
     {
         DetailMethodText.Text = "Select a request"; DetailUrlText.Text = string.Empty; DetailStatusText.Text = "No request selected"; DetailTimingText.Text = string.Empty;
-        RequestHeadersBox.Text = ResponseHeadersBox.Text = QueryBox.Text = RequestBodyBox.Text = CookiesBox.Text = TimingBox.Text = string.Empty;
+        TimingBox.Text = string.Empty;
+        _requestHeadersViewer.SetItems(null, "No request headers");
+        _responseHeadersViewer.SetItems(null, "No response headers");
+        _queryViewer.SetItems(null, "No query parameters");
+        _requestBodyViewer.SetContent(null);
+        _cookiesViewer.SetItems(null, "No cookies available");
         ResponseDataViewer.SetContent(null);
         PolicyAnalysisBox.Text = string.Empty;
         OpenInRestButton.IsEnabled = false;
@@ -225,18 +244,11 @@ public partial class NetworkInspectorView : UserControl
 
     private static string DisplayClaim(string? value) => string.IsNullOrWhiteSpace(value) ? "Not present" : value;
 
-    private static string FormatHeaders(IReadOnlyDictionary<string, string> headers) =>
-        headers.Count == 0
-            ? "(No headers available)"
-            : string.Join(Environment.NewLine, headers.Select(header =>
-                header.Key.Equals("Authorization", StringComparison.OrdinalIgnoreCase)
-                    ? $"{header.Key}: {RedactAuthorization(header.Value)}"
-                    : $"{header.Key}: {header.Value}"));
-
-    private static string RedactAuthorization(string value) =>
-        JwtTokenInspector.IsBearerJwt(value) ? "Bearer •••• (JWT detected)" :
-        value.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase) ? "Bearer ••••" :
-        "••••";
+    private static void ReplaceTabContent(FrameworkElement oldContent, FrameworkElement newContent)
+    {
+        var tab = (TabItem)oldContent.Parent;
+        tab.Content = newContent;
+    }
 
     private async Task UpdatePolicyAnalysisAsync(CapturedNetworkRequest request)
     {

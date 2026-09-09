@@ -4,6 +4,7 @@ using System.Text;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Data;
+using System.Windows.Media;
 using System.Windows.Threading;
 using DeveloperBrowser.Core.Security;
 using Microsoft.Web.WebView2.Core;
@@ -16,6 +17,7 @@ public partial class HarInspectorView : UserControl
     private Func<HarCaptureTarget?>? _activeWebView;
     private ICollectionView? _entriesView;
     private HarEntry? _selectedEntry;
+    private readonly HarTransactionViewer _transactionViewer = new() { Margin = new Thickness(0, 12, 0, 0) };
     private readonly DispatcherTimer _captureTimer = new() { Interval = TimeSpan.FromSeconds(1) };
 
     public event EventHandler<CapturedNetworkRequest>? OpenInRestClientRequested;
@@ -23,8 +25,20 @@ public partial class HarInspectorView : UserControl
     public HarInspectorView()
     {
         InitializeComponent();
+        var oldTabs = (TabControl)ItemsControl.ItemsControlFromItemContainer((TabItem)OverviewBox.Parent);
+        var detailGrid = (Grid)oldTabs.Parent;
+        Grid.SetRow(_transactionViewer, Grid.GetRow(oldTabs));
+        detailGrid.Children.Remove(oldTabs);
+        detailGrid.Children.Add(_transactionViewer);
         SearchBox.Style = (Style)FindResource("SearchInput");
         SearchBox.Tag = "Search URL…";
+        StatusFilterBox.Width = 126;
+        MethodFilterBox.Width = 132;
+        RequestList.ItemContainerStyle = (Style)FindResource("HarRequestRow");
+        DetailUrlText.FontSize = 12;
+        DetailUrlText.MaxWidth = 520;
+        DetailUrlText.FontFamily = new FontFamily("Cascadia Mono");
+        DetailUrlText.Foreground = new SolidColorBrush(Color.FromRgb(212, 227, 245));
         _captureTimer.Tick += (_, _) => UpdateCaptureMetrics();
     }
 
@@ -118,6 +132,7 @@ public partial class HarInspectorView : UserControl
             _captureTimer.Stop();
             CapturePanel.Visibility = Visibility.Collapsed;
             ShowInspector();
+            SelectFirstRequest();
         }
         catch (Exception exception)
         {
@@ -199,13 +214,9 @@ public partial class HarInspectorView : UserControl
     {
         DetailTitleText.Text = $"{entry.Method}  {entry.StatusText}";
         DetailUrlText.Text = entry.Url;
+        DetailUrlText.ToolTip = entry.Url;
         OverviewBox.Text = $"URL: {entry.Url}{Environment.NewLine}Method: {entry.Method}{Environment.NewLine}Status: {entry.StatusText}{Environment.NewLine}Type: {entry.ResourceType}{Environment.NewLine}Domain: {entry.Domain}{Environment.NewLine}MIME: {entry.ContentType}{Environment.NewLine}Transfer: {entry.SizeText}{Environment.NewLine}Duration: {entry.DurationText}{Environment.NewLine}Remote: {(entry.RemoteAddress ?? "—")}{(entry.RemotePort is null ? string.Empty : ":" + entry.RemotePort)}{(string.IsNullOrWhiteSpace(entry.FailureReason) ? string.Empty : Environment.NewLine + "Failure: " + entry.FailureReason)}";
-        RequestBox.Text = $"{entry.Method} {entry.Url}{Environment.NewLine}{Environment.NewLine}Query parameters:{Environment.NewLine}{string.Join(Environment.NewLine, entry.QueryParameters().Select(pair => pair.Key + ": " + pair.Value))}{Environment.NewLine}{Environment.NewLine}Request body:{Environment.NewLine}{entry.RequestBody ?? "(No request body)"}";
-        ResponseViewer.SetContent(entry.ResponseBody ?? "(Response body was not available in this HAR entry.)", entry.ContentType);
-        RequestHeadersBox.Text = FormatHeaders(entry.RequestHeaders);
-        ResponseHeadersBox.Text = FormatHeaders(entry.ResponseHeaders);
-        CookiesBox.Text = string.IsNullOrWhiteSpace(entry.Cookies()) ? "(No cookies available)" : entry.Cookies();
-        TimingBox.Text = $"Started: {entry.StartedAt.LocalDateTime:G}{Environment.NewLine}Duration: {entry.DurationText}{Environment.NewLine}Transferred: {entry.SizeText}{Environment.NewLine}Protocol: {entry.HttpVersion}";
+        _transactionViewer.SetEntry(entry);
         OpenRestButton.IsEnabled = true;
         JwtButton.IsEnabled = entry.RequestHeaders.TryGetValue("Authorization", out var auth) && JwtTokenInspector.IsBearerJwt(auth);
     }
@@ -213,8 +224,8 @@ public partial class HarInspectorView : UserControl
     private void ClearDetail()
     {
         DetailTitleText.Text = "Select a request"; DetailUrlText.Text = string.Empty;
-        OverviewBox.Text = RequestBox.Text = RequestHeadersBox.Text = ResponseHeadersBox.Text = CookiesBox.Text = TimingBox.Text = string.Empty;
-        ResponseViewer.SetContent(null); OpenRestButton.IsEnabled = JwtButton.IsEnabled = false;
+        _transactionViewer.Clear();
+        OpenRestButton.IsEnabled = JwtButton.IsEnabled = false;
     }
 
     private void OpenRest_Click(object sender, RoutedEventArgs e)
@@ -245,7 +256,14 @@ public partial class HarInspectorView : UserControl
         RefreshUi();
     }
 
-    private static string FormatHeaders(IReadOnlyDictionary<string, string> headers) => headers.Count == 0 ? "(No headers available)" : string.Join(Environment.NewLine, headers.Select(header => header.Key + ": " + header.Value));
+    private void SelectFirstRequest()
+    {
+        if (RequestList.Items.Count == 0) return;
+        RequestList.SelectedIndex = 0;
+        RequestList.ScrollIntoView(RequestList.SelectedItem);
+        RequestList.Focus();
+    }
+
 }
 
 public sealed record HarCaptureTarget(CoreWebView2 WebView, string Label);
