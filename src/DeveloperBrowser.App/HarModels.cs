@@ -15,6 +15,7 @@ public sealed class HarEntry : INotifyPropertyChanged
     private string? _failureReason;
 
     public string Id { get; init; } = Guid.NewGuid().ToString("N");
+    public string TransportRequestId { get; init; } = string.Empty;
     public DateTimeOffset StartedAt { get; init; } = DateTimeOffset.UtcNow;
     public string PageUrl { get; init; } = string.Empty;
     public string Method { get; init; } = "GET";
@@ -41,6 +42,8 @@ public sealed class HarEntry : INotifyPropertyChanged
     public bool ResponseBodyWasBase64 { get; set; }
     public bool IsBinaryResponse { get; set; }
     public string? EncodedResponseBody { get; set; }
+    public bool ResponseBodyTruncated { get; set; }
+    public string? BodyCaptureNote { get; set; }
     public long RequestHeadersSize { get; set; } = -1;
     public long RequestBodySize { get; set; } = -1;
     public long ResponseHeadersSize { get; set; } = -1;
@@ -129,6 +132,7 @@ public sealed class HarFileEntry
     [JsonPropertyName("_failure")] public string? Failure { get; set; }
     [JsonPropertyName("_remoteAddress")] public string? RemoteAddress { get; set; }
     [JsonPropertyName("_remotePort")] public int? RemotePort { get; set; }
+    [JsonPropertyName("_cacheSource")] public string? CacheSource { get; set; }
 }
 public sealed class HarRequest
 {
@@ -168,7 +172,7 @@ public sealed class HarCookie
     [JsonExtensionData] public Dictionary<string, JsonElement>? AdditionalData { get; set; }
 }
 public sealed class HarPostData { [JsonPropertyName("mimeType")] public string MimeType { get; set; } = string.Empty; [JsonPropertyName("text")] public string? Text { get; set; } }
-public sealed class HarContent { [JsonPropertyName("size")] public long Size { get; set; } = -1; [JsonPropertyName("compression")] public long? Compression { get; set; } [JsonPropertyName("mimeType")] public string MimeType { get; set; } = string.Empty; [JsonPropertyName("text")] public string? Text { get; set; } [JsonPropertyName("encoding")] public string? Encoding { get; set; } }
+public sealed class HarContent { [JsonPropertyName("size")] public long Size { get; set; } = -1; [JsonPropertyName("compression")] public long? Compression { get; set; } [JsonPropertyName("mimeType")] public string MimeType { get; set; } = string.Empty; [JsonPropertyName("text")] public string? Text { get; set; } [JsonPropertyName("encoding")] public string? Encoding { get; set; } [JsonPropertyName("comment")] public string? Comment { get; set; } }
 public sealed class HarTimings
 {
     [JsonPropertyName("blocked")] public double Blocked { get; set; } = -1;

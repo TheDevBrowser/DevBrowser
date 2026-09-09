@@ -43,7 +43,7 @@ public partial class HarTransactionViewer : UserControl
         ResponseCookiesViewer.SetItems(responseCookies, "No response cookies");
         var displayedBody = entry.IsBinaryResponse
             ? $"Binary response body ({entry.ContentType}, {entry.SizeText}). The original Base64 payload is preserved in Raw and when exporting the HAR."
-            : entry.ResponseBody ?? "(Response body was not included in this HAR entry.)";
+            : entry.ResponseBody ?? $"({entry.BodyCaptureNote ?? "Response body was not included in this HAR entry."})";
         ResponseBodyViewer.SetContent(displayedBody, entry.IsBinaryResponse ? "text/plain" : entry.ContentType);
         ResponseHeadersMetaText.Text = CountLabel(entry.ResponseHeaderCount, "header");
         ResponseCookiesMetaText.Text = CountLabel(responseCookies.Count, "cookie");
@@ -84,6 +84,7 @@ public partial class HarTransactionViewer : UserControl
         if (entry.TransferSize >= 1024 * 1024) items.Add(new($"The response transferred {entry.SizeText}, which is relatively large.", Notice));
         if (entry.ResponseHeaders.TryGetValue("Cache-Control", out var cache) && cache.Contains("no-store", StringComparison.OrdinalIgnoreCase)) items.Add(new("The response explicitly prevents storage in caches.", Neutral));
         if (entry.ResponseBodyWasBase64) items.Add(new(entry.IsBinaryResponse ? "The response is binary; its original Base64 payload is preserved for lossless export." : "The Base64 response was decoded for inspection and preserved for lossless export.", Neutral));
+        if (entry.ResponseBodyTruncated || !string.IsNullOrWhiteSpace(entry.BodyCaptureNote)) items.Add(new(entry.BodyCaptureNote ?? "The response body was truncated during capture.", Notice));
         if (entry.ResponseHeaderItems.GroupBy(item => item.Name, StringComparer.OrdinalIgnoreCase).Any(group => group.Count() > 1)) items.Add(new("Repeated response headers are preserved as separate values.", Neutral));
         if (!string.IsNullOrWhiteSpace(entry.CacheSource) && entry.CacheSource != "Network") items.Add(new($"The response was served from {entry.CacheSource.ToLowerInvariant()}.", Good));
         return items;
