@@ -12,13 +12,23 @@ public sealed class CapturedNetworkRequest : INotifyPropertyChanged
     private string? _responseBody;
     private string? _blockedReason;
     private string? _corsError;
+    private NetworkTimingBreakdown _timing = new();
+    private double? _responseHeadersAt;
 
     public required string RequestId { get; init; }
+    public string? ProtocolRequestId { get; init; }
     public required string Method { get; init; }
     public required string Url { get; init; }
     public required string ResourceType { get; init; }
     public required double StartedAt { get; init; }
     public string? PageUrl { get; init; }
+    public string? InitiatorType { get; init; }
+    public string? InitiatorUrl { get; init; }
+    public string Protocol { get; private set; } = "Not recorded";
+    public string? RemoteAddress { get; private set; }
+    public int? RemotePort { get; private set; }
+    public string CacheSource { get; private set; } = "Network";
+    public bool ConnectionReused { get; private set; }
     public Dictionary<string, string> RequestHeaders { get; init; } = new(StringComparer.OrdinalIgnoreCase);
     public Dictionary<string, string> ResponseHeaders { get; } = new(StringComparer.OrdinalIgnoreCase);
     public string? RequestBody { get; init; }
@@ -30,15 +40,40 @@ public sealed class CapturedNetworkRequest : INotifyPropertyChanged
     public string? ResponseBody { get => _responseBody; set => SetField(ref _responseBody, value); }
     public string? BlockedReason { get => _blockedReason; private set => SetField(ref _blockedReason, value); }
     public string? CorsError { get => _corsError; private set => SetField(ref _corsError, value); }
+    public NetworkTimingBreakdown Timing { get => _timing; private set => SetField(ref _timing, value); }
     public bool IsFailed => StatusCode >= 400 || !string.IsNullOrEmpty(FailureReason);
     public string StatusText => StatusCode?.ToString() ?? (string.IsNullOrEmpty(FailureReason) ? "…" : "Failed");
     public string DurationText => DurationMs is null ? "—" : $"{DurationMs.Value:0} ms";
+    public string DisplayName
+    {
+        get
+        {
+            if (!Uri.TryCreate(Url, UriKind.Absolute, out var uri)) return Url;
+            var name = uri.AbsolutePath.TrimEnd('/').Split('/').LastOrDefault();
+            return string.IsNullOrWhiteSpace(name) ? uri.Host : Uri.UnescapeDataString(name) + uri.Query;
+        }
+    }
+    public string Host => Uri.TryCreate(Url, UriKind.Absolute, out var uri) ? uri.Host : string.Empty;
 
-    public void SetResponse(int statusCode, Dictionary<string, string> headers)
+    public void SetResponse(int statusCode, Dictionary<string, string> headers, NetworkTimingBreakdown? timing = null,
+        double? responseHeadersAt = null, string? protocol = null, string? remoteAddress = null, int? remotePort = null,
+        string? cacheSource = null, bool connectionReused = false)
     {
         StatusCode = statusCode;
         foreach (var (name, value) in headers) ResponseHeaders[name] = value;
         ResponseContentType = HeaderValue(ResponseHeaders, "Content-Type");
+        if (timing is not null) Timing = timing;
+        _responseHeadersAt = responseHeadersAt;
+        Protocol = string.IsNullOrWhiteSpace(protocol) ? Protocol : protocol;
+        RemoteAddress = remoteAddress;
+        RemotePort = remotePort;
+        CacheSource = string.IsNullOrWhiteSpace(cacheSource) ? CacheSource : cacheSource;
+        ConnectionReused = connectionReused;
+        OnPropertyChanged(nameof(Protocol));
+        OnPropertyChanged(nameof(RemoteAddress));
+        OnPropertyChanged(nameof(RemotePort));
+        OnPropertyChanged(nameof(CacheSource));
+        OnPropertyChanged(nameof(ConnectionReused));
     }
 
     public void MergeRequestHeaders(IReadOnlyDictionary<string, string> headers)
@@ -53,7 +88,12 @@ public sealed class CapturedNetworkRequest : INotifyPropertyChanged
         ResponseContentType = HeaderValue(ResponseHeaders, "Content-Type");
     }
 
-    public void SetFinished(double timestamp) => DurationMs = Math.Max(0, (timestamp - StartedAt) * 1000);
+    public void SetFinished(double timestamp)
+    {
+        DurationMs = Math.Max(0, (timestamp - StartedAt) * 1000);
+        if (_responseHeadersAt is not null && timestamp >= _responseHeadersAt)
+            Timing = Timing with { ReceiveMs = (timestamp - _responseHeadersAt.Value) * 1000 };
+    }
     public void SetFailed(string reason, double timestamp, string? blockedReason = null, string? corsError = null)
     {
         FailureReason = reason;
@@ -78,4 +118,17 @@ public sealed class CapturedNetworkRequest : INotifyPropertyChanged
     public event PropertyChangedEventHandler? PropertyChanged;
     private void OnPropertyChanged([CallerMemberName] string? name = null) => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
     private void SetField<T>(ref T field, T value, [CallerMemberName] string? name = null) { if (EqualityComparer<T>.Default.Equals(field, value)) return; field = value; OnPropertyChanged(name); }
+}
+
+public sealed record NetworkTimingBreakdown(
+    double? BlockedMs = null,
+    double? DnsMs = null,
+    double? ConnectMs = null,
+    double? TlsMs = null,
+    double? SendMs = null,
+    double? WaitMs = null,
+    double? ReceiveMs = null)
+{
+    public bool HasRecordedPhases => BlockedMs is not null || DnsMs is not null || ConnectMs is not null ||
+                                     TlsMs is not null || SendMs is not null || WaitMs is not null || ReceiveMs is not null;
 }
