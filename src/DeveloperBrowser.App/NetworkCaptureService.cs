@@ -32,7 +32,7 @@ public sealed class NetworkCaptureService
         Subscribe(webView, "Network.loadingFailed", OnLoadingFailed);
         webView.NavigationStarting += (_, args) =>
         {
-            if (!PreserveLog && !args.IsRedirected && ReferenceEquals(webView, _activeWebView)) Clear();
+            if (!PreserveLog && !args.IsRedirected && ReferenceEquals(webView, _activeWebView)) Clear(includePinned: false);
         };
     }
 
@@ -40,14 +40,25 @@ public sealed class NetworkCaptureService
     {
         if (ReferenceEquals(_activeWebView, webView)) return;
         _activeWebView = webView;
-        if (!PreserveLog) Clear();
+        if (!PreserveLog) Clear(includePinned: false);
     }
 
-    public void Clear()
+    public void Clear(bool includePinned = true)
     {
-        Requests.Clear();
-        _inFlight.Clear();
-        _webviewsByRequestId.Clear();
+        if (includePinned)
+        {
+            Requests.Clear();
+            _inFlight.Clear();
+            _webviewsByRequestId.Clear();
+            return;
+        }
+
+        var removedIds = Requests.Where(request => !request.IsPinned).Select(request => request.RequestId).ToHashSet();
+        for (var index = Requests.Count - 1; index >= 0; index--)
+            if (!Requests[index].IsPinned) Requests.RemoveAt(index);
+        foreach (var requestId in removedIds) _webviewsByRequestId.Remove(requestId);
+        foreach (var protocolId in _inFlight.Where(pair => !pair.Value.IsPinned).Select(pair => pair.Key).ToArray())
+            _inFlight.Remove(protocolId);
     }
 
     public async Task EnsureResponseBodyAsync(CapturedNetworkRequest request)
@@ -167,7 +178,13 @@ public sealed class NetworkCaptureService
     private void AddRequest(CapturedNetworkRequest request)
     {
         Requests.Add(request);
-        while (Requests.Count > MaxRequests) Requests.RemoveAt(0);
+        while (Requests.Count > MaxRequests)
+        {
+            var removable = Requests.Select((candidate, index) => (candidate, index)).FirstOrDefault(item => !item.candidate.IsPinned);
+            if (removable.candidate is null) break;
+            _webviewsByRequestId.Remove(removable.candidate.RequestId);
+            Requests.RemoveAt(removable.index);
+        }
     }
 
     private static Dictionary<string, string> Headers(JsonElement headers) => headers.EnumerateObject().ToDictionary(property => property.Name, property => property.Value.ToString(), StringComparer.OrdinalIgnoreCase);

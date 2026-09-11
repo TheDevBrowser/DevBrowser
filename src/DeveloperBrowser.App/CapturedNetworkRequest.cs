@@ -14,6 +14,7 @@ public sealed class CapturedNetworkRequest : INotifyPropertyChanged
     private string? _corsError;
     private NetworkTimingBreakdown _timing = new();
     private double? _responseHeadersAt;
+    private bool _isPinned;
 
     public required string RequestId { get; init; }
     public string? ProtocolRequestId { get; init; }
@@ -29,6 +30,7 @@ public sealed class CapturedNetworkRequest : INotifyPropertyChanged
     public int? RemotePort { get; private set; }
     public string CacheSource { get; private set; } = "Network";
     public bool ConnectionReused { get; private set; }
+    public bool IsPinned { get => _isPinned; set => SetField(ref _isPinned, value); }
     public Dictionary<string, string> RequestHeaders { get; init; } = new(StringComparer.OrdinalIgnoreCase);
     public Dictionary<string, string> ResponseHeaders { get; } = new(StringComparer.OrdinalIgnoreCase);
     public string? RequestBody { get; init; }

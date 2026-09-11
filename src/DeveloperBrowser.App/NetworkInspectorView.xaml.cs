@@ -1,11 +1,15 @@
+using System.Collections;
 using System.Collections.Specialized;
 using System.ComponentModel;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
 using System.Windows.Data;
+using System.Windows.Input;
 using System.Windows.Media;
 using DeveloperBrowser.Core.Security;
 using DeveloperBrowser.Core.Networking;
+using System.Text;
 using System.Text.RegularExpressions;
 
 namespace DeveloperBrowser.App;
@@ -15,14 +19,36 @@ public partial class NetworkInspectorView : UserControl
     private NetworkCaptureService? _capture;
     private ICollectionView? _requestsView;
     private CapturedNetworkRequest? _selectedRequest;
+    private CapturedNetworkRequest? _comparisonBaseRequest;
+    private bool _comparisonAwaitingTarget;
     private NetworkProblemCategory _problemCategory = NetworkProblemCategory.All;
     private bool _followingRelatedRequest;
+    private bool _synchronizingProblemFilter;
+    private bool _synchronizingDetailSection;
+    private NetworkInspectorDock? _currentDock;
+    private double _bottomRequestRatio = 0.58;
+    private double _rightRequestRatio = 0.52;
     private readonly List<ProblemCategoryItem> _problemCategories = [];
+    private readonly List<DetailSectionItem> _detailSections = [];
     private readonly KeyValueDataViewer _requestHeadersViewer = new() { Margin = new Thickness(0, 10, 0, 0) };
     private readonly KeyValueDataViewer _responseHeadersViewer = new() { Margin = new Thickness(0, 10, 0, 0) };
     private readonly KeyValueDataViewer _queryViewer = new() { Margin = new Thickness(0, 10, 0, 0) };
     private readonly StructuredDataViewer _requestBodyViewer = new() { Margin = new Thickness(0, 10, 0, 0) };
     private readonly KeyValueDataViewer _cookiesViewer = new() { Margin = new Thickness(0, 10, 0, 0) };
+    private readonly Button _pinButton = new() { Content = "Pin", MinWidth = 52 };
+    private readonly Button _compareButton = new() { Content = "Compare", MinWidth = 72 };
+    private readonly TextBox _comparisonBox = new()
+    {
+        IsReadOnly = true,
+        AcceptsReturn = true,
+        TextWrapping = TextWrapping.Wrap,
+        VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+        HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
+        FontFamily = new FontFamily("Cascadia Mono"),
+        FontSize = 11,
+        Padding = new Thickness(10)
+    };
+    private readonly TabItem _comparisonTab = new() { Header = "Comparison" };
 
     public event EventHandler<CapturedNetworkRequest>? OpenInRestClientRequested;
     public event EventHandler? CloseRequested;
@@ -36,7 +62,23 @@ public partial class NetworkInspectorView : UserControl
         ReplaceTabContent(QueryBox, _queryViewer);
         ReplaceTabContent(RequestBodyBox, _requestBodyViewer);
         ReplaceTabContent(CookiesBox, _cookiesViewer);
+        ConfigureRequestActions();
+        _comparisonTab.Content = _comparisonBox;
+        DetailTabs.Items.Add(_comparisonTab);
+        ScrollViewer.SetHorizontalScrollBarVisibility(FindingsList, ScrollBarVisibility.Disabled);
+        FindingsList.HorizontalContentAlignment = HorizontalAlignment.Stretch;
+        if (DiagnosisTab.Content is ScrollViewer diagnosisScroller)
+            diagnosisScroller.HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled;
+        _detailSections.AddRange(DetailTabs.Items.OfType<TabItem>()
+            .Select(tab => new DetailSectionItem(tab.Header?.ToString() ?? "Details", tab)));
+        DetailSectionBox.ItemsSource = _detailSections;
+        DetailSectionBox.SelectedIndex = Math.Max(DetailTabs.SelectedIndex, 0);
+        InspectorDetailSplitter.ResizeBehavior = GridResizeBehavior.PreviousAndNext;
+        InspectorDetailSplitter.ShowsPreview = false;
+        InspectorDetailSplitter.DragCompleted += InspectorDetailSplitter_DragCompleted;
         ProblemInbox.ItemsSource = _problemCategories;
+        FocusFilterBox.ItemsSource = _problemCategories;
+        ConfigureToolbar(NetworkInspectorDock.Bottom);
         UpdateProblemInbox();
     }
 
@@ -46,6 +88,8 @@ public partial class NetworkInspectorView : UserControl
         DataContext = capture;
         _requestsView = CollectionViewSource.GetDefaultView(capture.Requests);
         _requestsView.Filter = MatchesFilter;
+        if (_requestsView is ListCollectionView requestListView)
+            requestListView.CustomSort = PinnedRequestComparer.Instance;
         capture.Requests.CollectionChanged += Requests_CollectionChanged;
         RequestList.ItemsSource = _requestsView;
         UpdateRequestCount();
@@ -76,6 +120,8 @@ public partial class NetworkInspectorView : UserControl
             foreach (CapturedNetworkRequest request in e.NewItems) request.PropertyChanged += Request_PropertyChanged;
         if (e.OldItems is not null)
             foreach (CapturedNetworkRequest request in e.OldItems) request.PropertyChanged -= Request_PropertyChanged;
+        if (_comparisonBaseRequest is not null && e.OldItems?.Cast<CapturedNetworkRequest>().Any(request => ReferenceEquals(request, _comparisonBaseRequest)) == true)
+            CancelComparison();
         UpdateRequestCount();
         UpdateProblemInbox();
         TrafficEmptyText.Visibility = _capture?.Requests.Count > 0 && _requestsView?.Cast<object>().Any() == false ? Visibility.Visible : _capture?.Requests.Count > 0 ? Visibility.Collapsed : Visibility.Visible;
@@ -83,7 +129,7 @@ public partial class NetworkInspectorView : UserControl
 
     private void Request_PropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
-        if (e.PropertyName is nameof(CapturedNetworkRequest.IsFailed) or nameof(CapturedNetworkRequest.StatusCode) or nameof(CapturedNetworkRequest.DurationMs) or nameof(CapturedNetworkRequest.ResponseContentType) or nameof(CapturedNetworkRequest.ResponseBody) or nameof(CapturedNetworkRequest.Timing))
+        if (e.PropertyName is nameof(CapturedNetworkRequest.IsFailed) or nameof(CapturedNetworkRequest.StatusCode) or nameof(CapturedNetworkRequest.DurationMs) or nameof(CapturedNetworkRequest.ResponseContentType) or nameof(CapturedNetworkRequest.ResponseBody) or nameof(CapturedNetworkRequest.Timing) or nameof(CapturedNetworkRequest.IsPinned))
         {
             RefreshFilter();
             if (_selectedRequest is not null && ReferenceEquals(sender, _selectedRequest)) PopulateDiagnosis(_selectedRequest);
@@ -100,7 +146,13 @@ public partial class NetworkInspectorView : UserControl
         RequestCountText.Text = visible == total ? $"{total:N0} requests" : $"{visible:N0} of {total:N0}";
         TrafficEmptyText.Visibility = visible == 0 ? Visibility.Visible : Visibility.Collapsed;
     }
-    private void Clear_Click(object sender, RoutedEventArgs e) { _capture?.Clear(); ClearDetail(); }
+    private void Clear_Click(object sender, RoutedEventArgs e)
+    {
+        CancelComparison();
+        _comparisonBox.Clear();
+        _capture?.Clear();
+        ClearDetail();
+    }
     private void PreserveLogBox_Changed(object sender, RoutedEventArgs e)
     {
         if (_capture is not null) _capture.PreserveLog = PreserveLogBox.IsChecked == true;
@@ -111,33 +163,197 @@ public partial class NetworkInspectorView : UserControl
 
     public void SetDock(NetworkInspectorDock dock)
     {
+        RememberCurrentSplit();
+        _currentDock = dock;
         DockBottomButton.Visibility = dock == NetworkInspectorDock.Bottom ? Visibility.Collapsed : Visibility.Visible;
         DockRightButton.Visibility = dock == NetworkInspectorDock.Right ? Visibility.Collapsed : Visibility.Visible;
+        ProblemInboxHost.Visibility = dock == NetworkInspectorDock.Bottom ? Visibility.Visible : Visibility.Collapsed;
+        FocusFilterHost.Visibility = dock == NetworkInspectorDock.Right ? Visibility.Visible : Visibility.Collapsed;
+        DetailSectionHost.Visibility = dock == NetworkInspectorDock.Right ? Visibility.Visible : Visibility.Collapsed;
+        DetailTabs.Style = (Style)FindResource(dock == NetworkInspectorDock.Right ? "DetailTabsCompact" : "DetailTabs");
+        ConfigureToolbar(dock);
 
         InspectorContentGrid.ColumnDefinitions.Clear();
         InspectorContentGrid.RowDefinitions.Clear();
         if (dock == NetworkInspectorDock.Bottom)
         {
-            InspectorContentGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(58, GridUnitType.Star) });
+            InspectorContentGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(_bottomRequestRatio, GridUnitType.Star), MinWidth = 180 });
             InspectorContentGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(10) });
-            InspectorContentGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(42, GridUnitType.Star) });
+            InspectorContentGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1 - _bottomRequestRatio, GridUnitType.Star), MinWidth = 180 });
             Grid.SetRow(RequestListPanel, 0); Grid.SetColumn(RequestListPanel, 0);
             Grid.SetRow(InspectorDetailSplitter, 0); Grid.SetColumn(InspectorDetailSplitter, 1);
             Grid.SetRow(RequestDetailPanel, 0); Grid.SetColumn(RequestDetailPanel, 2);
             InspectorDetailSplitter.ResizeDirection = GridResizeDirection.Columns;
+            InspectorDetailSplitter.HorizontalAlignment = HorizontalAlignment.Stretch;
+            InspectorDetailSplitter.VerticalAlignment = VerticalAlignment.Stretch;
+            InspectorDetailSplitter.Cursor = Cursors.SizeWE;
             InspectorDetailSplitter.Width = 10; InspectorDetailSplitter.Height = double.NaN;
         }
         else
         {
-            InspectorContentGrid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(52, GridUnitType.Star), MinHeight = 160 });
+            InspectorContentGrid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(_rightRequestRatio, GridUnitType.Star), MinHeight = 120 });
             InspectorContentGrid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(8) });
-            InspectorContentGrid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(48, GridUnitType.Star), MinHeight = 160 });
+            InspectorContentGrid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1 - _rightRequestRatio, GridUnitType.Star), MinHeight = 120 });
             Grid.SetRow(RequestListPanel, 0); Grid.SetColumn(RequestListPanel, 0);
             Grid.SetRow(InspectorDetailSplitter, 1); Grid.SetColumn(InspectorDetailSplitter, 0);
             Grid.SetRow(RequestDetailPanel, 2); Grid.SetColumn(RequestDetailPanel, 0);
             InspectorDetailSplitter.ResizeDirection = GridResizeDirection.Rows;
+            InspectorDetailSplitter.HorizontalAlignment = HorizontalAlignment.Stretch;
+            InspectorDetailSplitter.VerticalAlignment = VerticalAlignment.Stretch;
+            InspectorDetailSplitter.Cursor = Cursors.SizeNS;
             InspectorDetailSplitter.Width = double.NaN; InspectorDetailSplitter.Height = 8;
         }
+    }
+
+    private void InspectorDetailSplitter_DragCompleted(object sender, DragCompletedEventArgs e) => RememberCurrentSplit();
+
+    private void RememberCurrentSplit()
+    {
+        if (_currentDock == NetworkInspectorDock.Bottom && InspectorContentGrid.ColumnDefinitions.Count == 3)
+        {
+            var requestWidth = InspectorContentGrid.ColumnDefinitions[0].ActualWidth;
+            var detailWidth = InspectorContentGrid.ColumnDefinitions[2].ActualWidth;
+            if (requestWidth + detailWidth > 0) _bottomRequestRatio = requestWidth / (requestWidth + detailWidth);
+        }
+        else if (_currentDock == NetworkInspectorDock.Right && InspectorContentGrid.RowDefinitions.Count == 3)
+        {
+            var requestHeight = InspectorContentGrid.RowDefinitions[0].ActualHeight;
+            var detailHeight = InspectorContentGrid.RowDefinitions[2].ActualHeight;
+            if (requestHeight + detailHeight > 0) _rightRequestRatio = requestHeight / (requestHeight + detailHeight);
+        }
+    }
+
+    private void DetailSectionBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_synchronizingDetailSection || DetailSectionBox.SelectedItem is not DetailSectionItem section) return;
+        _synchronizingDetailSection = true;
+        try
+        {
+            section.Tab.IsSelected = true;
+        }
+        finally
+        {
+            _synchronizingDetailSection = false;
+        }
+    }
+
+    private void DetailTabs_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_synchronizingDetailSection || !ReferenceEquals(e.OriginalSource, DetailTabs) || DetailTabs.SelectedItem is not TabItem selectedTab) return;
+        var section = _detailSections.FirstOrDefault(candidate => ReferenceEquals(candidate.Tab, selectedTab));
+        if (section is null) return;
+
+        _synchronizingDetailSection = true;
+        try
+        {
+            DetailSectionBox.SelectedItem = section;
+        }
+        finally
+        {
+            _synchronizingDetailSection = false;
+        }
+    }
+
+    private void ConfigureToolbar(NetworkInspectorDock dock)
+    {
+        NetworkToolbar.RowDefinitions.Clear();
+        NetworkToolbar.ColumnDefinitions.Clear();
+        ResetToolbarPlacement();
+
+        if (dock == NetworkInspectorDock.Right)
+        {
+            ConfigureRightToolbar();
+            return;
+        }
+
+        ConfigureBottomToolbar();
+    }
+
+    private void ConfigureRightToolbar()
+    {
+        NetworkToolbar.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        NetworkToolbar.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        NetworkToolbar.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        NetworkToolbar.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        NetworkToolbar.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        NetworkToolbar.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+        Place(NetworkTitleBlock, 0, 0);
+        Place(DockBottomButton, 0, 1);
+        Place(CloseButton, 0, 2);
+
+        Place(SearchBox, 1, 0);
+        SearchBox.Width = double.NaN;
+        SearchBox.MinWidth = 150;
+        SearchBox.HorizontalAlignment = HorizontalAlignment.Stretch;
+        SearchBox.Margin = new Thickness(0, 9, 12, 0);
+        Place(PreserveLogBox, 1, 1);
+        PreserveLogBox.Margin = new Thickness(0, 9, 12, 0);
+        Place(ClearButton, 1, 2);
+        ClearButton.Margin = new Thickness(0, 9, 0, 0);
+
+        Place(FilterBox, 2, 0);
+        FilterBox.Width = 150;
+        FilterBox.HorizontalAlignment = HorizontalAlignment.Left;
+        FilterBox.Margin = new Thickness(0, 9, 0, 0);
+        Place(RequestCountText, 2, 1, columnSpan: 2);
+        RequestCountText.HorizontalAlignment = HorizontalAlignment.Right;
+        RequestCountText.Margin = new Thickness(12, 9, 0, 0);
+
+        DockBottomButton.Margin = new Thickness(8, 0, 8, 0);
+    }
+
+    private void ConfigureBottomToolbar()
+    {
+        NetworkToolbar.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        for (var index = 0; index < 8; index++) NetworkToolbar.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        NetworkToolbar.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        NetworkToolbar.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+        Place(NetworkTitleBlock, 0, 0);
+        Place(FilterBox, 0, 1);
+        Place(SearchBox, 0, 2);
+        Place(RequestCountText, 0, 3);
+        Place(PreserveLogBox, 0, 4);
+        Place(ClearButton, 0, 5);
+        Place(DockBottomButton, 0, 6);
+        Place(DockRightButton, 0, 7);
+        Place(CloseButton, 0, 9);
+
+        NetworkTitleBlock.Margin = new Thickness(0, 0, 16, 0);
+        FilterBox.Width = 128;
+        FilterBox.Margin = new Thickness(0, 0, 8, 0);
+        SearchBox.Width = 205;
+        SearchBox.MinWidth = 0;
+        SearchBox.HorizontalAlignment = HorizontalAlignment.Left;
+        SearchBox.Margin = new Thickness(0, 0, 9, 0);
+        RequestCountText.HorizontalAlignment = HorizontalAlignment.Left;
+        RequestCountText.Margin = new Thickness(0, 0, 10, 0);
+        PreserveLogBox.Margin = new Thickness(0, 0, 11, 0);
+        ClearButton.Margin = new Thickness(0, 0, 7, 0);
+        DockBottomButton.Margin = new Thickness(0, 0, 7, 0);
+        DockRightButton.Margin = new Thickness(0, 0, 7, 0);
+    }
+
+    private void ResetToolbarPlacement()
+    {
+        foreach (var element in new FrameworkElement[] { NetworkTitleBlock, FilterBox, SearchBox, RequestCountText, PreserveLogBox, ClearButton, DockBottomButton, DockRightButton, CloseButton })
+        {
+            Grid.SetRow(element, 0);
+            Grid.SetColumn(element, 0);
+            Grid.SetRowSpan(element, 1);
+            Grid.SetColumnSpan(element, 1);
+            element.Margin = new Thickness(0);
+            element.VerticalAlignment = VerticalAlignment.Center;
+        }
+    }
+
+    private static void Place(FrameworkElement element, int row, int column, int rowSpan = 1, int columnSpan = 1)
+    {
+        Grid.SetRow(element, row);
+        Grid.SetColumn(element, column);
+        Grid.SetRowSpan(element, rowSpan);
+        Grid.SetColumnSpan(element, columnSpan);
     }
 
     private async void RequestList_SelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -151,6 +367,8 @@ public partial class NetworkInspectorView : UserControl
             await _capture.EnsureResponseBodyAsync(_selectedRequest);
             if (_selectedRequest == RequestList.SelectedItem) ResponseDataViewer.SetContent(_selectedRequest.ResponseBody ?? "(Response body is not available yet.)", _selectedRequest.ResponseContentType);
         }
+        if (_comparisonAwaitingTarget && _comparisonBaseRequest is not null && !ReferenceEquals(_comparisonBaseRequest, _selectedRequest))
+            await CompleteComparisonAsync(_comparisonBaseRequest, _selectedRequest);
     }
 
     private void PopulateDetail(CapturedNetworkRequest request)
@@ -171,6 +389,9 @@ public partial class NetworkInspectorView : UserControl
         _cookiesViewer.SetItems(HttpInspectorFormatting.Cookies(request.RequestHeaders, request.ResponseHeaders), "No cookies available");
         TimingBox.Text = BuildTimingReport(request);
         OpenInRestButton.IsEnabled = true;
+        _pinButton.IsEnabled = true;
+        _pinButton.Content = request.IsPinned ? "Unpin" : "Pin";
+        _compareButton.IsEnabled = true;
         JwtInspectButton.IsEnabled = TryGetAuthorizationHeader(request, out var authorizationHeader) && JwtTokenInspector.IsBearerJwt(authorizationHeader);
         ClearJwtDetail();
         PolicyAnalysisBox.Text = BuildPolicyReport(request).ToDisplayText();
@@ -208,6 +429,9 @@ public partial class NetworkInspectorView : UserControl
         ResponseDataViewer.SetContent(null);
         PolicyAnalysisBox.Text = string.Empty;
         OpenInRestButton.IsEnabled = false;
+        _pinButton.IsEnabled = false;
+        _pinButton.Content = "Pin";
+        _compareButton.IsEnabled = false;
         JwtInspectButton.IsEnabled = false;
         ClearJwtDetail();
     }
@@ -217,13 +441,101 @@ public partial class NetworkInspectorView : UserControl
         if (_selectedRequest is not null) OpenInRestClientRequested?.Invoke(this, _selectedRequest);
     }
 
+    private void ConfigureRequestActions()
+    {
+        if (OpenInRestButton.Parent is not StackPanel actions) return;
+        foreach (var button in new[] { _pinButton, _compareButton })
+        {
+            button.Style = (Style)FindResource("GhostButton");
+            button.Margin = new Thickness(0, 0, 7, 0);
+            button.IsEnabled = false;
+        }
+        _pinButton.ToolTip = "Keep this request across navigation and place it at the top";
+        _compareButton.ToolTip = "Use this request as the comparison baseline";
+        _pinButton.Click += PinRequest_Click;
+        _compareButton.Click += CompareRequest_Click;
+        actions.Children.Insert(0, _compareButton);
+        actions.Children.Insert(0, _pinButton);
+    }
+
+    private void PinRequest_Click(object sender, RoutedEventArgs e)
+    {
+        if (_selectedRequest is null) return;
+        _selectedRequest.IsPinned = !_selectedRequest.IsPinned;
+        _pinButton.Content = _selectedRequest.IsPinned ? "Unpin" : "Pin";
+        _requestsView?.Refresh();
+        RequestList.SelectedItem = _selectedRequest;
+        RequestList.ScrollIntoView(_selectedRequest);
+    }
+
+    private void CompareRequest_Click(object sender, RoutedEventArgs e)
+    {
+        if (_comparisonAwaitingTarget)
+        {
+            CancelComparison();
+            PopulateDiagnosis(_selectedRequest!);
+            return;
+        }
+        if (_selectedRequest is null) return;
+        _comparisonBaseRequest = _selectedRequest;
+        _comparisonAwaitingTarget = true;
+        _compareButton.Content = "Cancel";
+        _compareButton.ToolTip = "Cancel request comparison";
+        DiagnosisHeadlineText.Text = $"Baseline selected: {_selectedRequest.DisplayName}. Select another request to compare.";
+        DiagnosisHeadlineText.Foreground = (Brush)FindResource("AccentBrush");
+    }
+
+    private async Task CompleteComparisonAsync(CapturedNetworkRequest baseline, CapturedNetworkRequest target)
+    {
+        if (_capture is not null)
+        {
+            await _capture.EnsureResponseBodyAsync(baseline);
+            await _capture.EnsureResponseBodyAsync(target);
+        }
+        if (!ReferenceEquals(target, _selectedRequest)) return;
+        _comparisonBox.Text = BuildComparisonReport(baseline, target);
+        _comparisonTab.IsSelected = true;
+        CancelComparison(clearBaseline: false);
+    }
+
+    private void CancelComparison(bool clearBaseline = true)
+    {
+        _comparisonAwaitingTarget = false;
+        if (clearBaseline) _comparisonBaseRequest = null;
+        _compareButton.Content = "Compare";
+        _compareButton.ToolTip = "Use this request as the comparison baseline";
+    }
+
     private void ProblemInbox_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
-        if (ProblemInbox.SelectedItem is not ProblemCategoryItem selected) return;
+        if (_synchronizingProblemFilter || ProblemInbox.SelectedItem is not ProblemCategoryItem selected) return;
+        SelectProblemCategory(selected);
+    }
+
+    private void FocusFilterBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_synchronizingProblemFilter || FocusFilterBox.SelectedItem is not ProblemCategoryItem selected) return;
+        SelectProblemCategory(selected);
+    }
+
+    private void SelectProblemCategory(ProblemCategoryItem selected)
+    {
         _problemCategory = selected.Category;
         ActiveProblemLabel.Text = selected.Category == NetworkProblemCategory.All ? "All captured activity" : selected.Label;
+        SynchronizeProblemFilterSelection(selected);
         _requestsView?.Refresh();
         UpdateRequestCount();
+    }
+
+    private void SynchronizeProblemFilterSelection(ProblemCategoryItem selected)
+    {
+        _synchronizingProblemFilter = true;
+        try
+        {
+            ProblemInbox.SelectedItem = selected;
+            FocusFilterBox.SelectedItem = selected;
+        }
+        finally { _synchronizingProblemFilter = false; }
     }
 
     private void RelatedRequestsList_SelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -232,9 +544,7 @@ public partial class NetworkInspectorView : UserControl
         _followingRelatedRequest = true;
         try
         {
-            _problemCategory = NetworkProblemCategory.All;
-            ProblemInbox.SelectedIndex = 0;
-            _requestsView?.Refresh();
+            SelectProblemCategory(_problemCategories[0]);
             RequestList.SelectedItem = related.Request;
             RequestList.ScrollIntoView(related.Request);
             DiagnosisTab.IsSelected = true;
@@ -245,7 +555,7 @@ public partial class NetworkInspectorView : UserControl
     private void UpdateProblemInbox()
     {
         // Filter selection events can fire while InitializeComponent is still building the visual tree.
-        if (ProblemInbox is null) return;
+        if (ProblemInbox is null || FocusFilterBox is null) return;
         var requests = _capture?.Requests.ToArray() ?? [];
         var selected = _problemCategory;
         _problemCategories.Clear();
@@ -255,9 +565,40 @@ public partial class NetworkInspectorView : UserControl
             _problemCategories.Add(new(category, CategoryLabel(category), count, CategoryAccent(category)));
         }
         ProblemInbox.Items.Refresh();
-        ProblemInbox.SelectedItem = _problemCategories.FirstOrDefault(item => item.Category == selected) ?? _problemCategories[0];
+        FocusFilterBox.Items.Refresh();
+        SynchronizeProblemFilterSelection(_problemCategories.FirstOrDefault(item => item.Category == selected) ?? _problemCategories[0]);
         ActiveProblemLabel.Text = selected == NetworkProblemCategory.All ? "All captured activity" : CategoryLabel(selected);
+        UpdateProblemSummary(requests);
     }
+
+    private void UpdateProblemSummary(IReadOnlyList<CapturedNetworkRequest> requests)
+    {
+        if (ProblemSummaryText is null) return;
+        if (requests.Count == 0)
+        {
+            ProblemSummaryText.Text = "Waiting for traffic";
+            ProblemSummaryText.Foreground = (Brush)FindResource("MutedTextBrush");
+            return;
+        }
+
+        var problems = _problemCategories
+            .Where(item => item.Category is not NetworkProblemCategory.All and not NetworkProblemCategory.Healthy && item.Count > 0)
+            .Select(item => $"{item.Count:N0} {SummaryLabel(item.Category, item.Count)}")
+            .ToList();
+        ProblemSummaryText.Text = problems.Count == 0 ? "No detected problems" : string.Join(" · ", problems);
+        ProblemSummaryText.Foreground = problems.Count == 0 ? CategoryAccent(NetworkProblemCategory.Healthy) : CategoryAccent(NetworkProblemCategory.Suspicious);
+    }
+
+    private static string SummaryLabel(NetworkProblemCategory category, int count) => category switch
+    {
+        NetworkProblemCategory.Broken => "broken",
+        NetworkProblemCategory.Suspicious => "suspicious",
+        NetworkProblemCategory.Slow => "slow",
+        NetworkProblemCategory.Authentication => "auth",
+        NetworkProblemCategory.Content => "content",
+        NetworkProblemCategory.Cache => count == 1 ? "cache issue" : "cache issues",
+        _ => CategoryLabel(category).ToLowerInvariant()
+    };
 
     private static string CategoryLabel(NetworkProblemCategory category) => category switch
     {
@@ -413,6 +754,101 @@ public partial class NetworkInspectorView : UserControl
         return string.Join(Environment.NewLine, lines);
     }
 
+    private static string BuildComparisonReport(CapturedNetworkRequest baseline, CapturedNetworkRequest target)
+    {
+        var report = new StringBuilder();
+        report.AppendLine("REQUEST COMPARISON");
+        report.AppendLine($"A  {baseline.Method} {baseline.Url}");
+        report.AppendLine($"B  {target.Method} {target.Url}");
+        report.AppendLine();
+
+        var differenceCount = 0;
+        AddDifference(report, "Method", baseline.Method, target.Method, ref differenceCount);
+        AddDifference(report, "URL", baseline.Url, target.Url, ref differenceCount);
+        AddDifference(report, "Status", baseline.StatusText, target.StatusText, ref differenceCount);
+        AddDifference(report, "Content type", baseline.ResponseContentType, target.ResponseContentType, ref differenceCount);
+        AddDifference(report, "Protocol", baseline.Protocol, target.Protocol, ref differenceCount);
+        AddTimingDifference(report, "Total time", baseline.DurationMs, target.DurationMs, ref differenceCount);
+
+        AppendHeaderDifferences(report, "REQUEST HEADERS", baseline.RequestHeaders, target.RequestHeaders, ref differenceCount);
+        AppendHeaderDifferences(report, "RESPONSE HEADERS", baseline.ResponseHeaders, target.ResponseHeaders, ref differenceCount);
+        AppendBodyDifference(report, "REQUEST BODY", baseline.RequestBody, target.RequestBody, ref differenceCount);
+        AppendBodyDifference(report, "RESPONSE BODY", baseline.ResponseBody, target.ResponseBody, ref differenceCount);
+        AppendTimingDifferences(report, baseline.Timing, target.Timing, ref differenceCount);
+
+        if (differenceCount == 0) report.AppendLine("No meaningful differences were found in the captured data.");
+        else report.Insert(report.ToString().IndexOf(Environment.NewLine + Environment.NewLine, StringComparison.Ordinal) + Environment.NewLine.Length,
+            $"{differenceCount} meaningful difference{(differenceCount == 1 ? string.Empty : "s")} found.{Environment.NewLine}");
+        return report.ToString().TrimEnd();
+    }
+
+    private static void AddDifference(StringBuilder report, string label, string? before, string? after, ref int count)
+    {
+        if (string.Equals(before, after, StringComparison.Ordinal)) return;
+        report.AppendLine($"{label}: {DisplayValue(before)}  →  {DisplayValue(after)}");
+        count++;
+    }
+
+    private static void AppendHeaderDifferences(StringBuilder report, string title, IReadOnlyDictionary<string, string> baseline,
+        IReadOnlyDictionary<string, string> target, ref int count)
+    {
+        var changed = baseline.Keys.Union(target.Keys, StringComparer.OrdinalIgnoreCase)
+            .OrderBy(name => name, StringComparer.OrdinalIgnoreCase)
+            .Where(name => !string.Equals(baseline.GetValueOrDefault(name), target.GetValueOrDefault(name), StringComparison.Ordinal))
+            .ToList();
+        if (changed.Count == 0) return;
+        report.AppendLine().AppendLine(title);
+        foreach (var name in changed)
+        {
+            var sensitive = name.Equals("Authorization", StringComparison.OrdinalIgnoreCase) || name.Equals("Cookie", StringComparison.OrdinalIgnoreCase) || name.Equals("Set-Cookie", StringComparison.OrdinalIgnoreCase);
+            report.AppendLine($"• {name}");
+            report.AppendLine($"  A: {(sensitive ? "(sensitive value changed)" : DisplayValue(baseline.GetValueOrDefault(name)))}");
+            report.AppendLine($"  B: {(sensitive ? "(sensitive value changed)" : DisplayValue(target.GetValueOrDefault(name)))}");
+            count++;
+        }
+    }
+
+    private static void AppendBodyDifference(StringBuilder report, string title, string? baseline, string? target, ref int count)
+    {
+        if (string.Equals(baseline, target, StringComparison.Ordinal)) return;
+        report.AppendLine().AppendLine(title);
+        report.AppendLine($"A ({baseline?.Length ?? 0:N0} chars): {BodyPreview(baseline)}");
+        report.AppendLine($"B ({target?.Length ?? 0:N0} chars): {BodyPreview(target)}");
+        count++;
+    }
+
+    private static void AppendTimingDifferences(StringBuilder report, NetworkTimingBreakdown baseline, NetworkTimingBreakdown target, ref int count)
+    {
+        var phases = new (string Label, double? A, double? B)[]
+        {
+            ("Blocked", baseline.BlockedMs, target.BlockedMs), ("DNS", baseline.DnsMs, target.DnsMs),
+            ("Connect", baseline.ConnectMs, target.ConnectMs), ("TLS", baseline.TlsMs, target.TlsMs),
+            ("Send", baseline.SendMs, target.SendMs), ("Wait", baseline.WaitMs, target.WaitMs),
+            ("Receive", baseline.ReceiveMs, target.ReceiveMs)
+        };
+        var changed = phases.Where(phase => phase.A != phase.B).ToList();
+        if (changed.Count == 0) return;
+        report.AppendLine().AppendLine("TIMING PHASES");
+        foreach (var phase in changed) AddTimingDifference(report, phase.Label, phase.A, phase.B, ref count);
+    }
+
+    private static void AddTimingDifference(StringBuilder report, string label, double? before, double? after, ref int count)
+    {
+        if (before == after) return;
+        var delta = before is not null && after is not null ? $" ({after - before:+0.##;-0.##;0} ms)" : string.Empty;
+        report.AppendLine($"{label}: {TimingValue(before)}  →  {TimingValue(after)}{delta}");
+        count++;
+    }
+
+    private static string BodyPreview(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value)) return "(empty)";
+        var compact = Regex.Replace(value.Trim(), @"\s+", " ");
+        return compact.Length <= 500 ? compact : compact[..500] + "…";
+    }
+
+    private static string DisplayValue(string? value) => string.IsNullOrEmpty(value) ? "(not present)" : value;
+
     private static string TimingValue(double? value) => value is null ? "Not recorded" : $"{value.Value:0.##} ms";
 
     private static void ReplaceTabContent(FrameworkElement oldContent, FrameworkElement newContent)
@@ -476,6 +912,24 @@ public partial class NetworkInspectorView : UserControl
             if (!Regex.IsMatch(tag.Value, @"http-equiv\s*=\s*(['""]?)content-security-policy\1", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)) continue;
             var content = Regex.Match(tag.Value, @"content\s*=\s*(['""])(?<value>.*?)\1", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
             if (content.Success && !string.IsNullOrWhiteSpace(content.Groups["value"].Value)) yield return content.Groups["value"].Value;
+        }
+    }
+
+    private sealed record DetailSectionItem(string Label, TabItem Tab);
+
+    private sealed class PinnedRequestComparer : IComparer
+    {
+        public static PinnedRequestComparer Instance { get; } = new();
+
+        public int Compare(object? x, object? y)
+        {
+            if (ReferenceEquals(x, y)) return 0;
+            if (x is not CapturedNetworkRequest left) return -1;
+            if (y is not CapturedNetworkRequest right) return 1;
+            var pinned = right.IsPinned.CompareTo(left.IsPinned);
+            if (pinned != 0) return pinned;
+            var started = left.StartedAt.CompareTo(right.StartedAt);
+            return started != 0 ? started : string.Compare(left.RequestId, right.RequestId, StringComparison.Ordinal);
         }
     }
 }
