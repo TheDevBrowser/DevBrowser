@@ -196,7 +196,7 @@ public partial class RestClientView : UserControl
 
     private Border CreateRequestTabHeader(RestRequestTab tab)
     {
-        var header = new Border { Background = Brushes.Transparent, CornerRadius = new CornerRadius(7), Margin = new Thickness(0, 0, 6, 0), Padding = new Thickness(10, 0, 4, 0), Height = 36, Cursor = Cursors.Hand };
+        var header = new Border { Background = Brushes.Transparent, CornerRadius = new CornerRadius(8, 8, 0, 0), Margin = new Thickness(0, 0, 6, 0), Padding = new Thickness(11, 0, 6, 0), Height = 35, Cursor = Cursors.Hand };
         var layout = new StackPanel { Orientation = Orientation.Horizontal };
         tab.MethodText = new TextBlock { VerticalAlignment = VerticalAlignment.Center, FontFamily = new FontFamily("Cascadia Mono"), FontWeight = FontWeights.SemiBold, FontSize = 11, Margin = new Thickness(0, 0, 9, 0) };
         tab.TitleText = new TextBlock { VerticalAlignment = VerticalAlignment.Center, Foreground = (Brush)FindResource("PrimaryTextBrush"), FontSize = 12, MaxWidth = 140, TextTrimming = TextTrimming.CharacterEllipsis };
@@ -237,7 +237,7 @@ public partial class RestClientView : UserControl
         UpdateAuthenticationPanels();
         _isRestoringTab = false;
         _isDirty = tab.IsDirty;
-        foreach (var item in _requestTabs) item.Header.Background = item == tab ? new SolidColorBrush(Color.FromRgb(32, 35, 43)) : Brushes.Transparent;
+        foreach (var item in _requestTabs) item.Header.Background = item == tab ? (Brush)Application.Current.FindResource("SurfaceBrush") : Brushes.Transparent;
     }
 
     private void CaptureActiveTab()
@@ -399,7 +399,7 @@ public partial class RestClientView : UserControl
         workspace.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(336) });
         workspace.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
 
-        var sidebar = new Border { Background = new SolidColorBrush(Color.FromRgb(17, 23, 33)), BorderBrush = new SolidColorBrush(Color.FromRgb(43, 55, 72)), BorderThickness = new Thickness(0, 0, 1, 0), Padding = new Thickness(16, 18, 14, 14) };
+        var sidebar = new Border { Background = (Brush)Application.Current.FindResource("PanelBrush"), BorderBrush = (Brush)Application.Current.FindResource("BorderBrush"), BorderThickness = new Thickness(0, 0, 1, 0), CornerRadius = new CornerRadius(11, 0, 0, 11), Padding = new Thickness(16, 18, 14, 14) };
         var sidebarGrid = new Grid();
         sidebarGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
         sidebarGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
@@ -408,8 +408,8 @@ public partial class RestClientView : UserControl
         sidebarHeader.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         sidebarHeader.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         var headerCopy = new StackPanel();
-        headerCopy.Children.Add(new TextBlock { Text = "Collections", Foreground = new SolidColorBrush(Color.FromRgb(247, 249, 252)), FontSize = 17, FontWeight = FontWeights.SemiBold });
-        headerCopy.Children.Add(new TextBlock { Text = "Your saved API workspace", Foreground = new SolidColorBrush(Color.FromRgb(132, 148, 169)), FontSize = 11, Margin = new Thickness(0, 3, 0, 0) });
+        headerCopy.Children.Add(new TextBlock { Text = "Collections", Foreground = (Brush)Application.Current.FindResource("PrimaryTextBrush"), FontSize = 17, FontWeight = FontWeights.SemiBold });
+        headerCopy.Children.Add(new TextBlock { Text = "Your saved API workspace", Foreground = (Brush)Application.Current.FindResource("MutedTextBrush"), FontSize = 11, Margin = new Thickness(0, 3, 0, 0) });
         sidebarHeader.Children.Add(headerCopy);
         var quickCreate = new Button { Content = "+", ToolTip = "New collection", Width = 32, Height = 32, Padding = new Thickness(0), FontSize = 19, FontWeight = FontWeights.Normal, VerticalAlignment = VerticalAlignment.Center };
         quickCreate.Style = (Style)FindResource("PrimaryButton");
@@ -429,7 +429,7 @@ public partial class RestClientView : UserControl
         sidebar.Child = sidebarGrid;
         workspace.Children.Add(sidebar);
 
-        var details = new Border { Background = new SolidColorBrush(Color.FromRgb(16, 23, 32)), Padding = new Thickness(22) };
+        var details = new Border { Background = (Brush)Application.Current.FindResource("CanvasBrush"), CornerRadius = new CornerRadius(0, 11, 11, 0), Padding = new Thickness(22) };
         Grid.SetColumn(details, 1);
         var detailsGrid = new Grid();
         detailsGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
@@ -437,7 +437,7 @@ public partial class RestClientView : UserControl
         var header = new Grid();
         var heading = new StackPanel();
         _collectionManagerTitle = new TextBlock { Text = "Select a collection", Foreground = Brushes.White, FontSize = 19, FontWeight = FontWeights.SemiBold };
-        _collectionManagerDescription = new TextBlock { Text = "Choose a collection from the left, or create a new one.", Foreground = new SolidColorBrush(Color.FromRgb(184, 197, 214)), Margin = new Thickness(0, 5, 0, 0) };
+        _collectionManagerDescription = new TextBlock { Text = "Choose a collection from the left, or create a new one.", Foreground = (Brush)Application.Current.FindResource("MutedTextBrush"), Margin = new Thickness(0, 5, 0, 0) };
         heading.Children.Add(_collectionManagerTitle);
         heading.Children.Add(_collectionManagerDescription);
         header.Children.Add(heading);
@@ -476,7 +476,7 @@ public partial class RestClientView : UserControl
     {
         var overlay = new Grid { Background = new SolidColorBrush(Color.FromArgb(170, 8, 11, 16)), Visibility = Visibility.Collapsed };
         Panel.SetZIndex(overlay, 50);
-        var dialog = new Border { Width = 410, Background = new SolidColorBrush(Color.FromRgb(24, 34, 49)), BorderBrush = new SolidColorBrush(Color.FromRgb(64, 81, 106)), BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(10), Padding = new Thickness(18), HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
+        var dialog = new Border { Width = 410, Background = (Brush)Application.Current.FindResource("PanelBrush"), BorderBrush = (Brush)Application.Current.FindResource("BorderBrush"), BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(10), Padding = new Thickness(18), HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
         var content = new Grid();
         content.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
         content.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
@@ -513,7 +513,7 @@ public partial class RestClientView : UserControl
     {
         var overlay = new Grid { Background = new SolidColorBrush(Color.FromArgb(170, 8, 11, 16)), Visibility = Visibility.Collapsed };
         Panel.SetZIndex(overlay, 51);
-        var dialog = new Border { Width = 360, Background = new SolidColorBrush(Color.FromRgb(24, 34, 49)), BorderBrush = new SolidColorBrush(Color.FromRgb(64, 81, 106)), BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(10), Padding = new Thickness(18), HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
+        var dialog = new Border { Width = 360, Background = (Brush)Application.Current.FindResource("PanelBrush"), BorderBrush = (Brush)Application.Current.FindResource("BorderBrush"), BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(10), Padding = new Thickness(18), HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
         var content = new Grid();
         content.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
         content.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
@@ -555,10 +555,10 @@ public partial class RestClientView : UserControl
         if (nodes.Count == 0)
         {
             var hasSearch = !string.IsNullOrWhiteSpace(search);
-            var empty = new Border { Background = new SolidColorBrush(Color.FromRgb(21, 29, 41)), BorderBrush = new SolidColorBrush(Color.FromRgb(39, 52, 69)), BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(10), Padding = new Thickness(18), Margin = new Thickness(2, 8, 2, 0) };
+            var empty = new Border { Background = (Brush)Application.Current.FindResource("PanelBrush"), BorderBrush = (Brush)Application.Current.FindResource("BorderBrush"), BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(10), Padding = new Thickness(18), Margin = new Thickness(2, 8, 2, 0) };
             var copy = new StackPanel { HorizontalAlignment = HorizontalAlignment.Center };
-            copy.Children.Add(new TextBlock { Text = hasSearch ? "No matching items" : "No collections yet", Foreground = new SolidColorBrush(Color.FromRgb(229, 235, 243)), FontSize = 13, FontWeight = FontWeights.SemiBold, HorizontalAlignment = HorizontalAlignment.Center });
-            copy.Children.Add(new TextBlock { Text = hasSearch ? "Try a different name, method, or URL." : "Create a collection to organize your requests.", Foreground = new SolidColorBrush(Color.FromRgb(132, 148, 169)), FontSize = 11, TextWrapping = TextWrapping.Wrap, TextAlignment = TextAlignment.Center, Margin = new Thickness(0, 5, 0, 0) });
+            copy.Children.Add(new TextBlock { Text = hasSearch ? "No matching items" : "No collections yet", Foreground = (Brush)Application.Current.FindResource("PrimaryTextBrush"), FontSize = 13, FontWeight = FontWeights.SemiBold, HorizontalAlignment = HorizontalAlignment.Center });
+            copy.Children.Add(new TextBlock { Text = hasSearch ? "Try a different name, method, or URL." : "Create a collection to organize your requests.", Foreground = (Brush)Application.Current.FindResource("MutedTextBrush"), FontSize = 11, TextWrapping = TextWrapping.Wrap, TextAlignment = TextAlignment.Center, Margin = new Thickness(0, 5, 0, 0) });
             empty.Child = copy;
             _collectionTreePanel.Children.Add(empty);
         }
@@ -592,7 +592,7 @@ public partial class RestClientView : UserControl
     private Border CreateCollectionTreeRow(CollectionTreeNode node)
     {
         var isSelected = node.IsRequest ? _selectedSavedRequest?.Id == node.Request!.Id : node.IsFolder ? _selectedFolder?.Id == node.Folder!.Id : _selectedCollection?.Id == node.Collection.Id;
-        var row = new Border { Tag = node, Background = isSelected ? new SolidColorBrush(node.IsCollection ? Color.FromRgb(27, 49, 74) : Color.FromRgb(27, 39, 56)) : Brushes.Transparent, BorderBrush = isSelected ? new SolidColorBrush(node.IsCollection ? Color.FromRgb(50, 115, 174) : Color.FromRgb(48, 65, 87)) : Brushes.Transparent, BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(8), Padding = new Thickness(8, node.IsRequest ? 7 : 8, 7, node.IsRequest ? 7 : 8), Margin = new Thickness(node.Indent * 17 + 1, 2, 2, 2), MinHeight = node.IsRequest ? 34 : 46, HorizontalAlignment = HorizontalAlignment.Stretch, Cursor = Cursors.Hand };
+        var row = new Border { Tag = node, Background = isSelected ? (Brush)Application.Current.FindResource("SurfaceBrush") : Brushes.Transparent, BorderBrush = isSelected ? (Brush)Application.Current.FindResource("AccentBrush") : Brushes.Transparent, BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(8), Padding = new Thickness(8, node.IsRequest ? 7 : 8, 7, node.IsRequest ? 7 : 8), Margin = new Thickness(node.Indent * 17 + 1, 2, 2, 2), MinHeight = node.IsRequest ? 34 : 46, HorizontalAlignment = HorizontalAlignment.Stretch, Cursor = Cursors.Hand };
         row.MouseLeftButtonUp += CollectionTreeNodeSelected_Click;
         row.MouseEnter += CollectionTreeRow_MouseEnter;
         row.MouseLeave += CollectionTreeRow_MouseLeave;
@@ -635,7 +635,7 @@ public partial class RestClientView : UserControl
             var methodBadge = new Border { Background = MethodBadgeBrush(node.Request!.Method), CornerRadius = new CornerRadius(4), Padding = new Thickness(5, 2, 5, 2), HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Center };
             methodBadge.Child = new TextBlock { Text = node.Request.Method.ToUpperInvariant(), Foreground = MethodBrush(node.Request.Method), FontWeight = FontWeights.Bold, FontSize = 9 };
             requestLine.Children.Add(methodBadge);
-            var requestName = new TextBlock { Text = node.Request.Name, Foreground = new SolidColorBrush(Color.FromRgb(218, 227, 239)), FontSize = 11.5, TextTrimming = TextTrimming.CharacterEllipsis, VerticalAlignment = VerticalAlignment.Center };
+            var requestName = new TextBlock { Text = node.Request.Name, Foreground = (Brush)Application.Current.FindResource("PrimaryTextBrush"), FontSize = 11.5, TextTrimming = TextTrimming.CharacterEllipsis, VerticalAlignment = VerticalAlignment.Center };
             Grid.SetColumn(requestName, 1);
             requestLine.Children.Add(requestName);
             Grid.SetColumn(requestLine, 3); grid.Children.Add(requestLine);
@@ -643,8 +643,8 @@ public partial class RestClientView : UserControl
         else
         {
             var labels = new StackPanel();
-            labels.Children.Add(new TextBlock { Text = node.DisplayName, Foreground = new SolidColorBrush(Color.FromRgb(241, 245, 249)), FontWeight = FontWeights.SemiBold, FontSize = 12, TextTrimming = TextTrimming.CharacterEllipsis });
-            labels.Children.Add(new TextBlock { Text = $"{node.RequestCount} request{(node.RequestCount == 1 ? string.Empty : "s")}", Foreground = new SolidColorBrush(Color.FromRgb(132, 148, 169)), FontSize = 10, Margin = new Thickness(0, 3, 0, 0) });
+            labels.Children.Add(new TextBlock { Text = node.DisplayName, Foreground = (Brush)Application.Current.FindResource("PrimaryTextBrush"), FontWeight = FontWeights.SemiBold, FontSize = 12, TextTrimming = TextTrimming.CharacterEllipsis });
+            labels.Children.Add(new TextBlock { Text = $"{node.RequestCount} request{(node.RequestCount == 1 ? string.Empty : "s")}", Foreground = (Brush)Application.Current.FindResource("MutedTextBrush"), FontSize = 10, Margin = new Thickness(0, 3, 0, 0) });
             Grid.SetColumn(labels, 3); grid.Children.Add(labels);
             var menu = new Border
             {
@@ -671,7 +671,7 @@ public partial class RestClientView : UserControl
         canvas.Children.Add(new System.Windows.Shapes.Path
         {
             Data = Geometry.Parse(expanded ? "M4,6 L8,10 L12,6" : "M6,4 L10,8 L6,12"),
-            Stroke = new SolidColorBrush(Color.FromRgb(196, 211, 229)),
+            Stroke = (Brush)Application.Current.FindResource("PrimaryTextBrush"),
             StrokeThickness = 1.8,
             StrokeStartLineCap = PenLineCap.Round,
             StrokeEndLineCap = PenLineCap.Round,
@@ -683,7 +683,7 @@ public partial class RestClientView : UserControl
     private static Viewbox CreateCollectionTreeIcon(bool isCollection)
     {
         var canvas = new Canvas { Width = 18, Height = 18 };
-        var stroke = new SolidColorBrush(Color.FromRgb(209, 213, 219));
+        var stroke = (Brush)Application.Current.FindResource("PrimaryTextBrush");
         var shape = isCollection
             ? new System.Windows.Shapes.Path { Data = Geometry.Parse("M3,3 L15,3 L15,15 L3,15 Z M6,6 L12,6 M6,9 L12,9 M6,12 L10,12"), Stroke = stroke, StrokeThickness = 1.35, StrokeLineJoin = PenLineJoin.Round }
             : new System.Windows.Shapes.Path { Data = Geometry.Parse("M2,5 L7,5 L9,7 L16,7 L16,15 L2,15 Z"), Stroke = stroke, StrokeThickness = 1.45, StrokeLineJoin = PenLineJoin.Round };
@@ -694,7 +694,7 @@ public partial class RestClientView : UserControl
     private static Viewbox CreateMoreIcon()
     {
         var canvas = new Canvas { Width = 18, Height = 18 };
-        var brush = new SolidColorBrush(Color.FromRgb(205, 217, 233));
+        var brush = (Brush)Application.Current.FindResource("PrimaryTextBrush");
         foreach (var left in new[] { 3.0, 8.0, 13.0 })
         {
             var dot = new System.Windows.Shapes.Ellipse { Width = 2.5, Height = 2.5, Fill = brush };
@@ -848,7 +848,7 @@ public partial class RestClientView : UserControl
 
         if (collection is null)
         {
-            _collectionManagerContent.Children.Add(new TextBlock { Text = "Select a collection to view its basics and manage the saved requests inside it.", Foreground = new SolidColorBrush(Color.FromRgb(159, 176, 197)), FontSize = 12, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(2, 8, 0, 0) });
+            _collectionManagerContent.Children.Add(new TextBlock { Text = "Select a collection to view its basics and manage the saved requests inside it.", Foreground = (Brush)Application.Current.FindResource("MutedTextBrush"), FontSize = 12, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(2, 8, 0, 0) });
             return;
         }
 
@@ -858,15 +858,15 @@ public partial class RestClientView : UserControl
 
     private Border CreateCollectionBasicsPanel(RestCollection collection)
     {
-        var panel = new Border { Background = new SolidColorBrush(Color.FromRgb(18, 28, 41)), BorderBrush = new SolidColorBrush(Color.FromRgb(47, 62, 82)), BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(8), Padding = new Thickness(15, 13, 15, 13) };
+        var panel = new Border { Background = (Brush)Application.Current.FindResource("PanelBrush"), BorderBrush = (Brush)Application.Current.FindResource("BorderBrush"), BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(8), Padding = new Thickness(15, 13, 15, 13) };
         var contents = new StackPanel();
         var heading = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
         var icon = CreateCollectionTreeIcon(true);
         icon.Margin = new Thickness(0, 0, 8, 0);
         heading.Children.Add(icon);
-        heading.Children.Add(new TextBlock { Text = collection.Name, Foreground = new SolidColorBrush(Color.FromRgb(242, 246, 252)), FontSize = 15, FontWeight = FontWeights.SemiBold, VerticalAlignment = VerticalAlignment.Center });
+        heading.Children.Add(new TextBlock { Text = collection.Name, Foreground = (Brush)Application.Current.FindResource("PrimaryTextBrush"), FontSize = 15, FontWeight = FontWeights.SemiBold, VerticalAlignment = VerticalAlignment.Center });
         contents.Children.Add(heading);
-        contents.Children.Add(new TextBlock { Text = string.IsNullOrWhiteSpace(collection.Description) ? "No description yet." : collection.Description, Foreground = new SolidColorBrush(Color.FromRgb(184, 197, 214)), FontSize = 10, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(24, 6, 0, 0) });
+        contents.Children.Add(new TextBlock { Text = string.IsNullOrWhiteSpace(collection.Description) ? "No description yet." : collection.Description, Foreground = (Brush)Application.Current.FindResource("MutedTextBrush"), FontSize = 10, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(24, 6, 0, 0) });
         var facts = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 10, 0, 0) };
         facts.Children.Add(CreateCollectionFact("requests", $"{collection.Requests.Count} request{(collection.Requests.Count == 1 ? string.Empty : "s")}"));
         facts.Children.Add(CreateCollectionFact("folders", $"{collection.Folders.Count} folder{(collection.Folders.Count == 1 ? string.Empty : "s")}"));
@@ -881,7 +881,7 @@ public partial class RestClientView : UserControl
     {
         var content = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(type == "requests" ? 0 : 15, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center };
         content.Children.Add(CreateCollectionFactIcon(type));
-        content.Children.Add(new TextBlock { Text = text, Foreground = new SolidColorBrush(Color.FromRgb(171, 188, 209)), FontSize = 10, Margin = new Thickness(5, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center });
+        content.Children.Add(new TextBlock { Text = text, Foreground = (Brush)Application.Current.FindResource("MutedTextBrush"), FontSize = 10, Margin = new Thickness(5, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center });
         return content;
     }
 
@@ -895,19 +895,19 @@ public partial class RestClientView : UserControl
             _ => "M8,2 A6,6 0 1,1 2,8 A6,6 0 0,1 8,2 M8,4 L8,8 L11,10"
         };
         var canvas = new Canvas { Width = 16, Height = 16 };
-        canvas.Children.Add(new System.Windows.Shapes.Path { Data = Geometry.Parse(geometry), Stroke = new SolidColorBrush(Color.FromRgb(140, 162, 189)), StrokeThickness = 1.3, StrokeLineJoin = PenLineJoin.Round, StrokeStartLineCap = PenLineCap.Round, StrokeEndLineCap = PenLineCap.Round });
+        canvas.Children.Add(new System.Windows.Shapes.Path { Data = Geometry.Parse(geometry), Stroke = (Brush)Application.Current.FindResource("MutedTextBrush"), StrokeThickness = 1.3, StrokeLineJoin = PenLineJoin.Round, StrokeStartLineCap = PenLineCap.Round, StrokeEndLineCap = PenLineCap.Round });
         return new Viewbox { Width = 13, Height = 13, Child = canvas };
     }
 
     private Border CreateCollectionRequestsPanel(RestCollection collection)
     {
-        var panel = new Border { Background = new SolidColorBrush(Color.FromRgb(23, 33, 47)), BorderBrush = new SolidColorBrush(Color.FromRgb(58, 73, 96)), BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(9), Padding = new Thickness(15), Margin = new Thickness(0, 14, 0, 0) };
+        var panel = new Border { Background = (Brush)Application.Current.FindResource("PanelBrush"), BorderBrush = (Brush)Application.Current.FindResource("BorderBrush"), BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(9), Padding = new Thickness(15), Margin = new Thickness(0, 14, 0, 0) };
         var content = new StackPanel();
-        content.Children.Add(new TextBlock { Text = "SAVED REQUESTS", Foreground = new SolidColorBrush(Color.FromRgb(184, 197, 214)), FontSize = 10, FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 0, 0, 10) });
+        content.Children.Add(new TextBlock { Text = "SAVED REQUESTS", Foreground = (Brush)Application.Current.FindResource("MutedTextBrush"), FontSize = 10, FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 0, 0, 10) });
         var table = new StackPanel();
         table.Children.Add(CreateCollectionRequestTableHeader());
         foreach (var request in collection.Requests.OrderBy(item => item.SortOrder).ThenBy(item => item.CreatedAt)) table.Children.Add(CreateCollectionRequestTableRow(request));
-        if (collection.Requests.Count == 0) table.Children.Add(new TextBlock { Text = "No saved requests in this collection yet.", Foreground = new SolidColorBrush(Color.FromRgb(159, 176, 197)), FontSize = 11, Margin = new Thickness(10, 14, 0, 10) });
+        if (collection.Requests.Count == 0) table.Children.Add(new TextBlock { Text = "No saved requests in this collection yet.", Foreground = (Brush)Application.Current.FindResource("MutedTextBrush"), FontSize = 11, Margin = new Thickness(10, 14, 0, 10) });
         content.Children.Add(table);
         panel.Child = content;
         return panel;
@@ -916,23 +916,23 @@ public partial class RestClientView : UserControl
     private static Grid CreateCollectionRequestTableHeader()
     {
         var header = CreateCollectionRequestTableGrid();
-        header.Background = new SolidColorBrush(Color.FromRgb(30, 43, 60));
-        header.Children.Add(CreateTableText("METHOD", new SolidColorBrush(Color.FromRgb(184, 197, 214)), 10, true, 0));
-        header.Children.Add(CreateTableText("REQUEST", new SolidColorBrush(Color.FromRgb(184, 197, 214)), 10, true, 1));
-        header.Children.Add(CreateTableText("CREATED", new SolidColorBrush(Color.FromRgb(184, 197, 214)), 10, true, 2));
-        header.Children.Add(CreateTableText("ACTION", new SolidColorBrush(Color.FromRgb(184, 197, 214)), 10, true, 3));
+        header.Background = (Brush)Application.Current.FindResource("SurfaceBrush");
+        header.Children.Add(CreateTableText("METHOD", (Brush)Application.Current.FindResource("MutedTextBrush"), 10, true, 0));
+        header.Children.Add(CreateTableText("REQUEST", (Brush)Application.Current.FindResource("MutedTextBrush"), 10, true, 1));
+        header.Children.Add(CreateTableText("CREATED", (Brush)Application.Current.FindResource("MutedTextBrush"), 10, true, 2));
+        header.Children.Add(CreateTableText("ACTION", (Brush)Application.Current.FindResource("MutedTextBrush"), 10, true, 3));
         return header;
     }
 
     private Border CreateCollectionRequestTableRow(SavedRestRequest request)
     {
-        var row = new Border { Background = new SolidColorBrush(Color.FromRgb(20, 29, 42)), BorderBrush = new SolidColorBrush(Color.FromRgb(47, 62, 82)), BorderThickness = new Thickness(0, 0, 0, 1), Padding = new Thickness(0, 2, 0, 2) };
+        var row = new Border { Background = (Brush)Application.Current.FindResource("PanelBrush"), BorderBrush = (Brush)Application.Current.FindResource("BorderBrush"), BorderThickness = new Thickness(0, 0, 0, 1), Padding = new Thickness(0, 2, 0, 2) };
         var grid = CreateCollectionRequestTableGrid();
         grid.Children.Add(CreateTableText(request.Method, MethodBrush(request.Method), 11, true, 0));
-        var requestName = CreateTableText(request.Name, new SolidColorBrush(Color.FromRgb(230, 238, 248)), 12, false, 1);
+        var requestName = CreateTableText(request.Name, (Brush)Application.Current.FindResource("PrimaryTextBrush"), 12, false, 1);
         requestName.ToolTip = request.Url;
         grid.Children.Add(requestName);
-        grid.Children.Add(CreateTableText(request.CreatedAt.LocalDateTime.ToString("dd MMM yyyy"), new SolidColorBrush(Color.FromRgb(184, 197, 214)), 10, false, 2));
+        grid.Children.Add(CreateTableText(request.CreatedAt.LocalDateTime.ToString("dd MMM yyyy"), (Brush)Application.Current.FindResource("MutedTextBrush"), 10, false, 2));
         var open = new Button { Content = CreatePlayIcon(), ToolTip = "Open request", Width = 32, Height = 28, Padding = new Thickness(6), HorizontalAlignment = HorizontalAlignment.Center, Tag = request };
         open.Style = (Style)FindResource("StorageActionButton");
         open.Click += OpenCollectionRequest_Click;
@@ -961,7 +961,7 @@ public partial class RestClientView : UserControl
     private static Viewbox CreatePlayIcon()
     {
         var canvas = new Canvas { Width = 16, Height = 16 };
-        canvas.Children.Add(new System.Windows.Shapes.Path { Data = Geometry.Parse("M5,3 L13,8 L5,13 Z"), Fill = new SolidColorBrush(Color.FromRgb(125, 211, 252)) });
+        canvas.Children.Add(new System.Windows.Shapes.Path { Data = Geometry.Parse("M5,3 L13,8 L5,13 Z"), Fill = (Brush)Application.Current.FindResource("AccentBrush") });
         return new Viewbox { Width = 14, Height = 14, Child = canvas };
     }
 
@@ -1268,7 +1268,7 @@ public partial class RestClientView : UserControl
 
     private Border CreateEnvironmentManagerRow(RestEnvironment environment)
     {
-        var row = new Border { Tag = environment, Background = new SolidColorBrush(Color.FromRgb(29, 38, 52)), CornerRadius = new CornerRadius(8), Padding = new Thickness(9, 8, 6, 8), Margin = new Thickness(0, 2, 0, 2), HorizontalAlignment = HorizontalAlignment.Stretch };
+        var row = new Border { Tag = environment, Background = (Brush)Application.Current.FindResource("SurfaceBrush"), CornerRadius = new CornerRadius(8), Padding = new Thickness(9, 8, 6, 8), Margin = new Thickness(0, 2, 0, 2), HorizontalAlignment = HorizontalAlignment.Stretch };
         var grid = new Grid();
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(18) });
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
@@ -1281,7 +1281,7 @@ public partial class RestClientView : UserControl
         grid.Children.Add(dot);
         var labels = new StackPanel();
         labels.Children.Add(new TextBlock { Text = environment.Name, Foreground = Brushes.White, FontWeight = FontWeights.SemiBold });
-        labels.Children.Add(new TextBlock { Text = $"{environment.Variables.Count} variable{(environment.Variables.Count == 1 ? string.Empty : "s")}", Foreground = new SolidColorBrush(Color.FromRgb(184, 197, 214)), FontSize = 10, Margin = new Thickness(0, 2, 0, 0) });
+        labels.Children.Add(new TextBlock { Text = $"{environment.Variables.Count} variable{(environment.Variables.Count == 1 ? string.Empty : "s")}", Foreground = (Brush)Application.Current.FindResource("MutedTextBrush"), FontSize = 10, Margin = new Thickness(0, 2, 0, 0) });
         Grid.SetColumn(labels, 1);
         grid.Children.Add(labels);
         if (environment.IsActive)
@@ -1476,12 +1476,12 @@ public partial class RestClientView : UserControl
         editor.Children.Add(_managerVariableSubmitButton);
         panel.Children.Add(editor);
 
-        var table = new Border { Background = new SolidColorBrush(Color.FromRgb(23, 30, 41)), BorderBrush = new SolidColorBrush(Color.FromRgb(53, 68, 91)), BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(7) };
+        var table = new Border { Background = (Brush)Application.Current.FindResource("PanelBrush"), BorderBrush = (Brush)Application.Current.FindResource("BorderBrush"), BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(7) };
         var tableGrid = new Grid();
         tableGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
         tableGrid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
         var header = CreateManagerVariableGrid();
-        header.Background = new SolidColorBrush(Color.FromRgb(29, 38, 52));
+        header.Background = (Brush)Application.Current.FindResource("SurfaceBrush");
         AddManagerVariableHeader(header, "Variable", 0);
         AddManagerVariableHeader(header, "Value", 1);
         AddManagerVariableHeader(header, "Type", 2);
@@ -1502,7 +1502,7 @@ public partial class RestClientView : UserControl
         tableGrid.Children.Add(EnvironmentManagerVariables);
         table.Child = tableGrid;
         panel.Children.Add(table);
-        panel.Children.Add(new TextBlock { Text = "Secret values are masked and stored locally only.", Foreground = new SolidColorBrush(Color.FromRgb(159, 176, 197)), FontSize = 10, Margin = new Thickness(0, 9, 0, 0) });
+        panel.Children.Add(new TextBlock { Text = "Secret values are masked and stored locally only.", Foreground = (Brush)Application.Current.FindResource("MutedTextBrush"), FontSize = 10, Margin = new Thickness(0, 9, 0, 0) });
     }
 
     private static Grid CreateManagerVariableGrid()
@@ -1517,18 +1517,18 @@ public partial class RestClientView : UserControl
 
     private static void AddManagerVariableHeader(Grid grid, string text, int column)
     {
-        var label = new TextBlock { Text = text, Foreground = new SolidColorBrush(Color.FromRgb(184, 197, 214)), FontSize = 10, FontWeight = FontWeights.SemiBold, Margin = new Thickness(10, 8, 8, 8) };
+        var label = new TextBlock { Text = text, Foreground = (Brush)Application.Current.FindResource("MutedTextBrush"), FontSize = 10, FontWeight = FontWeights.SemiBold, Margin = new Thickness(10, 8, 8, 8) };
         Grid.SetColumn(label, column);
         grid.Children.Add(label);
     }
 
     private UIElement CreateManagerVariableRow(RestEnvironmentVariable variable)
     {
-        var row = new Border { Background = new SolidColorBrush(Color.FromRgb(28, 38, 52)), CornerRadius = new CornerRadius(5), Padding = new Thickness(0, 7, 0, 7), Margin = new Thickness(0, 2, 0, 2), HorizontalAlignment = HorizontalAlignment.Stretch };
+        var row = new Border { Background = (Brush)Application.Current.FindResource("SurfaceBrush"), CornerRadius = new CornerRadius(5), Padding = new Thickness(0, 7, 0, 7), Margin = new Thickness(0, 2, 0, 2), HorizontalAlignment = HorizontalAlignment.Stretch };
         var grid = CreateManagerVariableGrid();
         AddManagerVariableCell(grid, variable.Key, 0, Brushes.White, "Cascadia Mono");
         AddManagerVariableCell(grid, variable.IsSecret ? "••••••••••••" : variable.Value ?? string.Empty, 1, new SolidColorBrush(Color.FromRgb(158, 230, 184)), "Cascadia Mono");
-        AddManagerVariableCell(grid, variable.IsSecret ? "Secret" : "Plain", 2, variable.IsSecret ? new SolidColorBrush(Color.FromRgb(134, 239, 172)) : new SolidColorBrush(Color.FromRgb(184, 197, 214)), null);
+        AddManagerVariableCell(grid, variable.IsSecret ? "Secret" : "Plain", 2, variable.IsSecret ? new SolidColorBrush(Color.FromRgb(134, 239, 172)) : (Brush)Application.Current.FindResource("MutedTextBrush"), null);
         var actions = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 0, 6, 0) };
         actions.Children.Add(CreateManagerVariableActionButton(false, "Edit variable", variable, EditManagerVariable_Click));
         actions.Children.Add(CreateManagerVariableActionButton(true, "Delete variable", variable, DeleteManagerVariable_Click));
@@ -1573,7 +1573,8 @@ public partial class RestClientView : UserControl
             var pen = new System.Windows.Shapes.Path { Data = Geometry.Parse("M4,15.5 L4,18 L6.5,18 L16.3,8.2 L13.8,5.7 Z M14.7,4.8 L16,3.5 L18.5,6 L17.2,7.3 Z"), Fill = brush };
             canvas.Children.Add(pen);
         }
-        var button = new Button { Content = new Viewbox { Width = 15, Height = 15, Child = canvas }, Tag = variable, ToolTip = toolTip, Width = 29, Height = 26, Margin = new Thickness(2, 0, 0, 0) };
+        // Icon-only buttons need less padding than the shared text-action style.
+        var button = new Button { Content = new Viewbox { Width = 15, Height = 15, Child = canvas }, Tag = variable, ToolTip = toolTip, Width = 29, Height = 26, Padding = new Thickness(4), Margin = new Thickness(2, 0, 0, 0) };
         button.Style = (Style)FindResource("StorageActionButton");
         button.Click += handler;
         return button;
@@ -1760,7 +1761,7 @@ public partial class RestClientView : UserControl
             SaveLocationTreePanel.Children.Add(new TextBlock
             {
                 Text = string.IsNullOrWhiteSpace(search) ? "No collections yet. Create one to save this request." : "No matching collection or folder.",
-                Foreground = new SolidColorBrush(Color.FromRgb(159, 176, 197)),
+                Foreground = (Brush)Application.Current.FindResource("MutedTextBrush"),
                 TextWrapping = TextWrapping.Wrap,
                 Margin = new Thickness(9)
             });
@@ -1787,8 +1788,8 @@ public partial class RestClientView : UserControl
         var row = new Border
         {
             Tag = destination,
-            Background = selected ? new SolidColorBrush(Color.FromRgb(26, 57, 85)) : Brushes.Transparent,
-            BorderBrush = selected ? new SolidColorBrush(Color.FromRgb(67, 174, 242)) : Brushes.Transparent,
+            Background = selected ? (Brush)Application.Current.FindResource("SurfaceBrush") : Brushes.Transparent,
+            BorderBrush = selected ? (Brush)Application.Current.FindResource("AccentBrush") : Brushes.Transparent,
             BorderThickness = selected ? new Thickness(2, 0, 0, 0) : new Thickness(0),
             CornerRadius = new CornerRadius(4),
             Padding = new Thickness(8, 7, 8, 7),
@@ -1797,14 +1798,14 @@ public partial class RestClientView : UserControl
         };
         var label = destination.Folder is null
             ? new TextBlock { Text = destination.Collection.Name, Foreground = Brushes.White, FontWeight = FontWeights.SemiBold, FontSize = 12 }
-            : new TextBlock { Text = "⌁  " + destination.Folder.Name, Foreground = new SolidColorBrush(Color.FromRgb(220, 230, 242)), FontSize = 12 };
-        var root = destination.Folder is null ? new TextBlock { Text = "Collection root", Foreground = new SolidColorBrush(Color.FromRgb(159, 176, 197)), FontSize = 10, Margin = new Thickness(7, 2, 0, 0) } : null;
+            : new TextBlock { Text = "⌁  " + destination.Folder.Name, Foreground = (Brush)Application.Current.FindResource("PrimaryTextBrush"), FontSize = 12 };
+        var root = destination.Folder is null ? new TextBlock { Text = "Collection root", Foreground = (Brush)Application.Current.FindResource("MutedTextBrush"), FontSize = 10, Margin = new Thickness(7, 2, 0, 0) } : null;
         var contents = new StackPanel();
         contents.Children.Add(label);
         if (root is not null) contents.Children.Add(root);
         row.Child = contents;
         row.MouseLeftButtonUp += SaveLocationRow_Click;
-        row.MouseEnter += (_, _) => { if (!selected) row.Background = new SolidColorBrush(Color.FromRgb(29, 42, 58)); };
+        row.MouseEnter += (_, _) => { if (!selected) row.Background = (Brush)Application.Current.FindResource("SurfaceHoverBrush"); };
         row.MouseLeave += (_, _) => { if (!selected) row.Background = Brushes.Transparent; };
         return row;
     }

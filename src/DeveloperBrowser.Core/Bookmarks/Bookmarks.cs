@@ -1,6 +1,10 @@
 namespace DeveloperBrowser.Core.Bookmarks;
 
-public sealed record BookmarkFolder(Guid Id, string Name, DateTimeOffset CreatedAt, bool IsDefault);
+public sealed record BookmarkFolder(Guid Id, string Name, DateTimeOffset CreatedAt, bool IsDefault, Guid? ParentFolderId = null)
+{
+    public string Path { get; init; } = Name;
+    public int Depth { get; init; }
+}
 
 public sealed record BookmarkItem(
     Guid Id,
@@ -26,7 +30,7 @@ public interface IBookmarkRepository
 {
     Task EnsureCreatedAsync(CancellationToken cancellationToken = default);
     Task<IReadOnlyList<BookmarkFolder>> GetFoldersAsync(CancellationToken cancellationToken = default);
-    Task<BookmarkFolder> AddFolderAsync(string name, CancellationToken cancellationToken = default);
+    Task<BookmarkFolder> AddFolderAsync(string name, CancellationToken cancellationToken = default, Guid? parentFolderId = null);
     Task<IReadOnlyList<BookmarkItem>> GetBookmarksAsync(CancellationToken cancellationToken = default);
     Task<BookmarkItem?> FindByUrlAsync(string url, CancellationToken cancellationToken = default);
     Task<BookmarkItem> SaveAsync(BookmarkItem bookmark, CancellationToken cancellationToken = default);
@@ -37,7 +41,7 @@ public interface IBookmarkService
 {
     Task InitializeAsync(CancellationToken cancellationToken = default);
     Task<IReadOnlyList<BookmarkFolder>> GetFoldersAsync(CancellationToken cancellationToken = default);
-    Task<BookmarkFolder> CreateFolderAsync(string name, CancellationToken cancellationToken = default);
+    Task<BookmarkFolder> CreateFolderAsync(string name, CancellationToken cancellationToken = default, Guid? parentFolderId = null);
     Task<IReadOnlyList<BookmarkItem>> GetBookmarksAsync(CancellationToken cancellationToken = default);
     Task<BookmarkItem?> FindByUrlAsync(string url, CancellationToken cancellationToken = default);
     Task<BookmarkItem> SaveAsync(BookmarkDraft draft, CancellationToken cancellationToken = default);
@@ -54,14 +58,17 @@ public sealed class BookmarkService(IBookmarkRepository repository) : IBookmarkS
             await repository.AddFolderAsync("Default", cancellationToken);
     }
 
-    public Task<IReadOnlyList<BookmarkFolder>> GetFoldersAsync(CancellationToken cancellationToken = default) => repository.GetFoldersAsync(cancellationToken);
-    public async Task<BookmarkFolder> CreateFolderAsync(string name, CancellationToken cancellationToken = default)
+    public async Task<IReadOnlyList<BookmarkFolder>> GetFoldersAsync(CancellationToken cancellationToken = default) =>
+        BookmarkFolderHierarchy.Order(await repository.GetFoldersAsync(cancellationToken));
+    public async Task<BookmarkFolder> CreateFolderAsync(string name, CancellationToken cancellationToken = default, Guid? parentFolderId = null)
     {
         name = name.Trim();
         if (string.IsNullOrWhiteSpace(name)) throw new ArgumentException("Folder name is required.", nameof(name));
         var existing = await repository.GetFoldersAsync(cancellationToken);
-        var match = existing.FirstOrDefault(folder => folder.Name.Equals(name, StringComparison.OrdinalIgnoreCase));
-        return match ?? await repository.AddFolderAsync(name, cancellationToken);
+        if (parentFolderId is { } parent && !existing.Any(folder => folder.Id == parent))
+            throw new ArgumentException("The parent folder no longer exists.", nameof(parentFolderId));
+        var match = existing.FirstOrDefault(folder => folder.ParentFolderId == parentFolderId && folder.Name.Equals(name, StringComparison.OrdinalIgnoreCase));
+        return match ?? await repository.AddFolderAsync(name, cancellationToken, parentFolderId);
     }
     public Task<IReadOnlyList<BookmarkItem>> GetBookmarksAsync(CancellationToken cancellationToken = default) => repository.GetBookmarksAsync(cancellationToken);
     public Task<BookmarkItem?> FindByUrlAsync(string url, CancellationToken cancellationToken = default) => repository.FindByUrlAsync(url, cancellationToken);

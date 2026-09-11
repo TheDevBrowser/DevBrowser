@@ -16,10 +16,13 @@
     <Resource Include="Assets\devbrowser-mark.png" />
     <Resource Include="Assets\devbrowser-mark-small.png" />
     <Resource Include="Assets\devbrowser-website-mark-64.png" />
+    <Resource Include="Assets\DevBrowser.ico" />
   </ItemGroup>
 
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
+    <ApplicationIcon>Assets\DevBrowser.ico</ApplicationIcon>
+    <ApplicationIcon>Assets\DevBrowser.ico</ApplicationIcon>
     <TargetFramework>net9.0-windows10.0.19041.0</TargetFramework>
     <RuntimeIdentifiers>win-x64</RuntimeIdentifiers>
     <AssemblyName>DevBrowser</AssemblyName>

@@ -14,6 +14,9 @@ internal static class NativeWindowStyle
     private const int DwmWindowCornerPreferenceRound = 2;
     private const int GwlExStyle = -20;
     private const int WsExDlgModalFrame = 0x00000001;
+    private const uint WmSetIcon = 0x0080;
+    private const int IconSmall = 0;
+    private const int IconBig = 1;
     private const uint SwpNoSize = 0x0001;
     private const uint SwpNoMove = 0x0002;
     private const uint SwpNoZOrder = 0x0004;
@@ -48,6 +51,11 @@ internal static class NativeWindowStyle
         // Suppress the caption icon while preserving the native caption buttons.
         var extendedStyle = GetWindowLongPtr(handle, GwlExStyle).ToInt64();
         SetWindowLongPtr(handle, GwlExStyle, new IntPtr(extendedStyle | WsExDlgModalFrame));
+        // WPF explicitly sets a small caption icon even with WS_EX_DLGMODALFRAME.
+        // Clear both window icons, otherwise Windows scales the large icon into
+        // the caption. The executable and package still supply the shell icon.
+        _ = SendMessage(handle, WmSetIcon, new IntPtr(IconSmall), IntPtr.Zero);
+        _ = SendMessage(handle, WmSetIcon, new IntPtr(IconBig), IntPtr.Zero);
         _ = SetWindowPos(handle, IntPtr.Zero, 0, 0, 0, 0,
             SwpNoMove | SwpNoSize | SwpNoZOrder | SwpFrameChanged);
     }
@@ -67,6 +75,9 @@ internal static class NativeWindowStyle
 
     [DllImport("user32.dll", EntryPoint = "GetWindowLongPtrW")]
     private static extern IntPtr GetWindowLongPtr(IntPtr windowHandle, int index);
+
+    [DllImport("user32.dll", EntryPoint = "SendMessageW")]
+    private static extern IntPtr SendMessage(IntPtr windowHandle, uint message, IntPtr wParam, IntPtr lParam);
 
     [DllImport("user32.dll", EntryPoint = "SetWindowLongPtrW")]
     private static extern IntPtr SetWindowLongPtr(IntPtr windowHandle, int index, IntPtr newValue);
