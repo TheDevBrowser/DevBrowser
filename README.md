@@ -32,6 +32,38 @@ Only trust the certificate when it was downloaded from the official DevBrowser G
 dotnet build DeveloperBrowser.slnx
 ```
 
+## Create a release
+
+Install Git and [GitHub CLI](https://cli.github.com/), then sign in with `gh auth login`.
+Commit your changes before releasing. The GitHub repository needs Actions enabled and
+the `SIGNING_CERTIFICATE_BASE64` and `SIGNING_CERTIFICATE_PASSWORD` secrets configured.
+
+Edit the defaults at the top of `scripts/Create-Release.ps1`, or pass a version/tag:
+
+```powershell
+# Preview without creating or pushing a tag (Git required; no GitHub access needed).
+.\scripts\Create-Release.ps1 -Version '1.2.3' -WhatIf
+
+# Stable release from HEAD using origin.
+.\scripts\Create-Release.ps1 -Version '1.2.3'
+
+# Beta release, optionally selecting another commit or remote.
+.\scripts\Create-Release.ps1 -Tag 'v1.2.4-beta.1' -Target 'HEAD' -Remote 'origin'
+```
+
+An explicit `Tag` takes precedence over the default `Version`; if both are passed,
+they must match. The script creates an annotated tag and pushes only that tag.
+The existing `release-msix.yml` workflow builds and signs the installer, generates
+release notes, and publishes the GitHub release. Beta tags become prereleases.
+Stable MSIX versions use revision `65535`; beta numbers must be `1` through `65534`.
+No version files need to be edited: the workflow derives versions from the tag.
+
+The script prints the Actions and release links; a successful push means the build
+has started, not that publication has succeeded. If the push fails, rerun with the
+same tag and target to reuse the local tag. If a remote tag already exists, inspect
+or rerun its failed workflow in GitHub Actions. Existing tags are never overwritten.
+Preview skips authentication, cleanliness, and remote tag checks.
+
 ## Diagnostics and privacy
 
 DevBrowser writes rolling local diagnostic logs to `%LOCALAPPDATA%\DevBrowser\Logs`. Use **Open log folder** in the application menu to view them.
