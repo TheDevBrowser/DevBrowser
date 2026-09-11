@@ -5,6 +5,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Data;
+using System.Windows.Documents;
 using System.Windows.Input;
 using System.Windows.Media;
 using DeveloperBrowser.Core.Security;
@@ -16,6 +17,7 @@ namespace DeveloperBrowser.App;
 
 public partial class NetworkInspectorView : UserControl
 {
+    private const string ComparisonGuidance = "HOW TO COMPARE\n\n1. Select the request you want to use as the baseline.\n2. Click Compare.\n3. Select a second request from Activity.\n\nDevBrowser will show only meaningful differences in status, headers, bodies, protocol, and recorded timing.";
     private NetworkCaptureService? _capture;
     private ICollectionView? _requestsView;
     private CapturedNetworkRequest? _selectedRequest;
@@ -30,23 +32,28 @@ public partial class NetworkInspectorView : UserControl
     private double _rightRequestRatio = 0.52;
     private readonly List<ProblemCategoryItem> _problemCategories = [];
     private readonly List<DetailSectionItem> _detailSections = [];
-    private readonly KeyValueDataViewer _requestHeadersViewer = new() { Margin = new Thickness(0, 10, 0, 0) };
-    private readonly KeyValueDataViewer _responseHeadersViewer = new() { Margin = new Thickness(0, 10, 0, 0) };
-    private readonly KeyValueDataViewer _queryViewer = new() { Margin = new Thickness(0, 10, 0, 0) };
-    private readonly StructuredDataViewer _requestBodyViewer = new() { Margin = new Thickness(0, 10, 0, 0) };
-    private readonly KeyValueDataViewer _cookiesViewer = new() { Margin = new Thickness(0, 10, 0, 0) };
+    private readonly HttpRequestViewer _requestViewer = new();
+    private readonly HttpResponseViewer _responseViewer = new();
+    private readonly TabItem _requestTab = new() { Header = "Request" };
+    private readonly TabItem _responseTab = new() { Header = "Response" };
+    private readonly TabItem _securityTab = new() { Header = "Security" };
+    private readonly TextBlock _securityOverviewText = new() { TextWrapping = TextWrapping.Wrap };
+    private readonly Expander _policySecurityExpander = new() { IsExpanded = true };
+    private readonly Expander _jwtSecurityExpander = new() { IsExpanded = false };
+    private readonly TextBlock _policySecurityHeader = new() { Text = "CORS / CSP", FontWeight = FontWeights.SemiBold };
+    private readonly TextBlock _jwtSecurityHeader = new() { Text = "JWT · No token detected", FontWeight = FontWeights.SemiBold };
     private readonly Button _pinButton = new() { Content = "Pin", MinWidth = 52 };
     private readonly Button _compareButton = new() { Content = "Compare", MinWidth = 72 };
-    private readonly TextBox _comparisonBox = new()
+    private readonly RichTextBox _comparisonBox = new()
     {
         IsReadOnly = true,
-        AcceptsReturn = true,
-        TextWrapping = TextWrapping.Wrap,
         VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
         HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
         FontFamily = new FontFamily("Cascadia Mono"),
         FontSize = 11,
-        Padding = new Thickness(10)
+        Padding = new Thickness(10),
+        Background = Brushes.Transparent,
+        BorderThickness = new Thickness(0)
     };
     private readonly TabItem _comparisonTab = new() { Header = "Comparison" };
 
@@ -57,14 +64,10 @@ public partial class NetworkInspectorView : UserControl
     public NetworkInspectorView()
     {
         InitializeComponent();
-        ReplaceTabContent(RequestHeadersBox, _requestHeadersViewer);
-        ReplaceTabContent(ResponseHeadersBox, _responseHeadersViewer);
-        ReplaceTabContent(QueryBox, _queryViewer);
-        ReplaceTabContent(RequestBodyBox, _requestBodyViewer);
-        ReplaceTabContent(CookiesBox, _cookiesViewer);
         ConfigureRequestActions();
         _comparisonTab.Content = _comparisonBox;
-        DetailTabs.Items.Add(_comparisonTab);
+        ShowComparisonGuidance();
+        ConfigureConsolidatedDetailSections();
         ScrollViewer.SetHorizontalScrollBarVisibility(FindingsList, ScrollBarVisibility.Disabled);
         FindingsList.HorizontalContentAlignment = HorizontalAlignment.Stretch;
         if (DiagnosisTab.Content is ScrollViewer diagnosisScroller)
@@ -80,6 +83,56 @@ public partial class NetworkInspectorView : UserControl
         FocusFilterBox.ItemsSource = _problemCategories;
         ConfigureToolbar(NetworkInspectorDock.Bottom);
         UpdateProblemInbox();
+    }
+
+    private void ConfigureConsolidatedDetailSections()
+    {
+        var timingTab = (TabItem)TimingBox.Parent;
+        var policyTab = (TabItem)PolicyAnalysisBox.Parent;
+        var jwtScroll = (ScrollViewer)JwtDetailTab.Content;
+        var jwtContent = (UIElement)jwtScroll.Content;
+        policyTab.Content = null;
+        jwtScroll.Content = null;
+
+        _requestTab.Content = _requestViewer;
+        _responseTab.Content = _responseViewer;
+        _policySecurityExpander.Style = (Style)FindResource("InspectorAccordion");
+        _policySecurityHeader.Foreground = (Brush)FindResource("PrimaryTextBrush");
+        _policySecurityExpander.Header = _policySecurityHeader;
+        _policySecurityExpander.Content = PolicyAnalysisBox;
+        _jwtSecurityExpander.Style = (Style)FindResource("InspectorAccordion");
+        _jwtSecurityHeader.Foreground = (Brush)FindResource("PrimaryTextBrush");
+        _jwtSecurityExpander.Header = _jwtSecurityHeader;
+        _jwtSecurityExpander.Content = jwtContent;
+
+        var overviewCard = new Border
+        {
+            Background = new SolidColorBrush(Color.FromRgb(23, 36, 50)),
+            BorderBrush = new SolidColorBrush(Color.FromRgb(45, 70, 94)),
+            BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(8),
+            Padding = new Thickness(11, 9, 11, 9),
+            Margin = new Thickness(0, 0, 0, 10),
+            Child = _securityOverviewText
+        };
+        var securityContent = new StackPanel();
+        securityContent.Children.Add(overviewCard);
+        securityContent.Children.Add(_policySecurityExpander);
+        securityContent.Children.Add(_jwtSecurityExpander);
+        _securityTab.Content = new ScrollViewer
+        {
+            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+            HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
+            Content = securityContent
+        };
+
+        DetailTabs.Items.Clear();
+        DetailTabs.Items.Add(DiagnosisTab);
+        DetailTabs.Items.Add(_requestTab);
+        DetailTabs.Items.Add(_responseTab);
+        DetailTabs.Items.Add(timingTab);
+        DetailTabs.Items.Add(_securityTab);
+        DetailTabs.Items.Add(_comparisonTab);
     }
 
     public void Initialize(NetworkCaptureService capture)
@@ -149,7 +202,7 @@ public partial class NetworkInspectorView : UserControl
     private void Clear_Click(object sender, RoutedEventArgs e)
     {
         CancelComparison();
-        _comparisonBox.Clear();
+        ShowComparisonGuidance();
         _capture?.Clear();
         ClearDetail();
     }
@@ -365,7 +418,7 @@ public partial class NetworkInspectorView : UserControl
         if (_capture is not null)
         {
             await _capture.EnsureResponseBodyAsync(_selectedRequest);
-            if (_selectedRequest == RequestList.SelectedItem) ResponseDataViewer.SetContent(_selectedRequest.ResponseBody ?? "(Response body is not available yet.)", _selectedRequest.ResponseContentType);
+            if (_selectedRequest == RequestList.SelectedItem) PopulateResponse(_selectedRequest);
         }
         if (_comparisonAwaitingTarget && _comparisonBaseRequest is not null && !ReferenceEquals(_comparisonBaseRequest, _selectedRequest))
             await CompleteComparisonAsync(_comparisonBaseRequest, _selectedRequest);
@@ -381,20 +434,34 @@ public partial class NetworkInspectorView : UserControl
         DetailStatusBadge.Background = new SolidColorBrush(request.IsFailed ? Color.FromRgb(128, 56, 64) : Color.FromRgb(29, 100, 70));
         DetailTimingText.Text = $"{request.ResourceType} · {request.DurationText}";
         PopulateDiagnosis(request);
-        _requestHeadersViewer.SetItems(HttpInspectorFormatting.Headers(request.RequestHeaders), "No request headers");
-        _responseHeadersViewer.SetItems(HttpInspectorFormatting.Headers(request.ResponseHeaders), "No response headers");
-        _queryViewer.SetItems(request.QueryParameters(), "No query parameters");
-        _requestBodyViewer.SetContent(request.RequestBody ?? "(No request body)", request.RequestContentType);
-        ResponseDataViewer.SetContent(request.ResponseBody ?? "Loading response body…", request.ResponseContentType);
-        _cookiesViewer.SetItems(HttpInspectorFormatting.Cookies(request.RequestHeaders, request.ResponseHeaders), "No cookies available");
+        _requestViewer.SetRequest(request.Method, request.Url, request.QueryParameters(), request.RequestBody, request.RequestContentType, request.RequestHeaders);
+        PopulateResponse(request);
         TimingBox.Text = BuildTimingReport(request);
         OpenInRestButton.IsEnabled = true;
         _pinButton.IsEnabled = true;
         _pinButton.Content = request.IsPinned ? "Unpin" : "Pin";
         _compareButton.IsEnabled = true;
         JwtInspectButton.IsEnabled = TryGetAuthorizationHeader(request, out var authorizationHeader) && JwtTokenInspector.IsBearerJwt(authorizationHeader);
+        _jwtSecurityHeader.Text = JwtInspectButton.IsEnabled ? "JWT · Token detected" : "JWT · No token detected";
+        _jwtSecurityExpander.IsEnabled = JwtInspectButton.IsEnabled;
+        _securityOverviewText.Text = BuildSecurityOverview(request, JwtInspectButton.IsEnabled);
         ClearJwtDetail();
         PolicyAnalysisBox.Text = BuildPolicyReport(request).ToDisplayText();
+    }
+
+    private void PopulateResponse(CapturedNetworkRequest request) => _responseViewer.SetResponse(
+        request.StatusCode, request.IsFailed, request.ResponseContentType, request.DurationText, request.Protocol,
+        request.ResponseHeaders, request.ResponseBody);
+
+    private static string BuildSecurityOverview(CapturedNetworkRequest request, bool hasJwt)
+    {
+        var policyState = request.BlockedReason?.Contains("csp", StringComparison.OrdinalIgnoreCase) == true
+            ? "CSP blocked this request."
+            : !string.IsNullOrWhiteSpace(request.CorsError) || request.BlockedReason?.Contains("cors", StringComparison.OrdinalIgnoreCase) == true
+                ? "A CORS failure was reported by the browser."
+                : "No CORS or CSP block was reported for this request.";
+        var jwtState = hasJwt ? "A Bearer JWT is available for local inspection." : "No Bearer JWT was detected.";
+        return $"{policyState} {jwtState}";
     }
 
     private void PopulateDiagnosis(CapturedNetworkRequest request)
@@ -421,12 +488,11 @@ public partial class NetworkInspectorView : UserControl
         FindingsList.ItemsSource = null; StoryList.ItemsSource = null; RelatedRequestsList.ItemsSource = null;
         NoRelatedText.Visibility = Visibility.Visible; RelatedHintText.Visibility = Visibility.Collapsed;
         TimingBox.Text = string.Empty;
-        _requestHeadersViewer.SetItems(null, "No request headers");
-        _responseHeadersViewer.SetItems(null, "No response headers");
-        _queryViewer.SetItems(null, "No query parameters");
-        _requestBodyViewer.SetContent(null);
-        _cookiesViewer.SetItems(null, "No cookies available");
-        ResponseDataViewer.SetContent(null);
+        _requestViewer.Clear();
+        _responseViewer.Clear();
+        _securityOverviewText.Text = "Select a request to inspect its browser security evidence.";
+        _jwtSecurityHeader.Text = "JWT · No token detected";
+        _jwtSecurityExpander.IsEnabled = false;
         PolicyAnalysisBox.Text = string.Empty;
         OpenInRestButton.IsEnabled = false;
         _pinButton.IsEnabled = false;
@@ -493,10 +559,87 @@ public partial class NetworkInspectorView : UserControl
             await _capture.EnsureResponseBodyAsync(target);
         }
         if (!ReferenceEquals(target, _selectedRequest)) return;
-        _comparisonBox.Text = BuildComparisonReport(baseline, target);
+        ShowComparisonReport(BuildComparisonReport(baseline, target));
         _comparisonTab.IsSelected = true;
         CancelComparison(clearBaseline: false);
     }
+
+    private void ShowComparisonGuidance()
+    {
+        var document = CreateComparisonDocument();
+        document.Blocks.Add(new Paragraph(new Run("HOW TO COMPARE"))
+        {
+            Foreground = (Brush)FindResource("PrimaryTextBrush"),
+            FontWeight = FontWeights.SemiBold,
+            Margin = new Thickness(0, 0, 0, 10)
+        });
+        document.Blocks.Add(new Paragraph(new Run(ComparisonGuidance["HOW TO COMPARE\n\n".Length..]))
+        {
+            Foreground = (Brush)FindResource("MutedTextBrush"),
+            LineHeight = 20,
+            Margin = new Thickness(0)
+        });
+        _comparisonBox.Document = document;
+    }
+
+    private void ShowComparisonReport(string report)
+    {
+        var baselineBrush = Frozen(91, 214, 255);
+        var comparisonBrush = Frozen(255, 180, 84);
+        var primaryBrush = (Brush)FindResource("PrimaryTextBrush");
+        var mutedBrush = (Brush)FindResource("MutedTextBrush");
+        var document = CreateComparisonDocument();
+        var legend = new Paragraph { Margin = new Thickness(0, 0, 0, 10), FontWeight = FontWeights.SemiBold };
+        legend.Inlines.Add(new Run("A  BASELINE") { Foreground = baselineBrush });
+        legend.Inlines.Add(new Run("       ") { Foreground = mutedBrush });
+        legend.Inlines.Add(new Run("B  COMPARISON") { Foreground = comparisonBrush });
+        document.Blocks.Add(legend);
+
+        foreach (var line in report.Split('\n').Select(value => value.TrimEnd('\r')))
+        {
+            var paragraph = new Paragraph { Margin = new Thickness(0, 0, 0, string.IsNullOrEmpty(line) ? 7 : 3) };
+            var trimmed = line.TrimStart();
+            if (IsBaselineComparisonLine(trimmed))
+                paragraph.Inlines.Add(new Run(line) { Foreground = baselineBrush });
+            else if (IsTargetComparisonLine(trimmed))
+                paragraph.Inlines.Add(new Run(line) { Foreground = comparisonBrush });
+            else if (TryAddColoredTransition(paragraph, line, baselineBrush, comparisonBrush, mutedBrush))
+            {
+                // The transition formatter added individually colored A and B values.
+            }
+            else
+                paragraph.Inlines.Add(new Run(line) { Foreground = IsComparisonHeading(line) ? primaryBrush : mutedBrush, FontWeight = IsComparisonHeading(line) ? FontWeights.SemiBold : FontWeights.Normal });
+            document.Blocks.Add(paragraph);
+        }
+        _comparisonBox.Document = document;
+    }
+
+    private FlowDocument CreateComparisonDocument() => new()
+    {
+        PagePadding = new Thickness(0),
+        FontFamily = _comparisonBox.FontFamily,
+        FontSize = _comparisonBox.FontSize
+    };
+
+    private static bool TryAddColoredTransition(Paragraph paragraph, string line, Brush baseline, Brush comparison, Brush muted)
+    {
+        var colon = line.IndexOf(':');
+        var arrow = line.IndexOf("  →  ", StringComparison.Ordinal);
+        if (colon < 0 || arrow <= colon) return false;
+        paragraph.Inlines.Add(new Run(line[..(colon + 1)] + " ") { Foreground = muted });
+        paragraph.Inlines.Add(new Run(line[(colon + 1)..arrow].Trim()) { Foreground = baseline });
+        paragraph.Inlines.Add(new Run("  →  ") { Foreground = muted });
+        paragraph.Inlines.Add(new Run(line[(arrow + 5)..].Trim()) { Foreground = comparison });
+        return true;
+    }
+
+    private static bool IsComparisonHeading(string line) => line.Length > 0 && line == line.ToUpperInvariant() && line.Any(char.IsLetter);
+
+    private static bool IsBaselineComparisonLine(string line) =>
+        line.StartsWith("A  ", StringComparison.Ordinal) || line.StartsWith("A:", StringComparison.Ordinal) || line.StartsWith("A (", StringComparison.Ordinal);
+
+    private static bool IsTargetComparisonLine(string line) =>
+        line.StartsWith("B  ", StringComparison.Ordinal) || line.StartsWith("B:", StringComparison.Ordinal) || line.StartsWith("B (", StringComparison.Ordinal);
 
     private void CancelComparison(bool clearBaseline = true)
     {
@@ -662,7 +805,7 @@ public partial class NetworkInspectorView : UserControl
             !JwtTokenInspector.TryInspectBearerToken(authorizationHeader, out var inspection) || inspection is null)
         {
             ClearJwtDetail("The Bearer value is not a decodable JWT.");
-            JwtDetailTab.IsSelected = true;
+            ShowSecurityJwt();
             return;
         }
 
@@ -675,7 +818,7 @@ public partial class NetworkInspectorView : UserControl
         if (!JwtTokenInspector.TryInspectToken(token, out var inspection) || inspection is null)
         {
             ClearJwtDetail("The stored value is not a decodable JWT.");
-            JwtDetailTab.IsSelected = true;
+            ShowSecurityJwt();
             return;
         }
 
@@ -708,7 +851,14 @@ public partial class NetworkInspectorView : UserControl
         JwtRemainingText.Text = inspection.TimeRemaining;
         JwtHeaderBox.Text = inspection.HeaderJson;
         JwtPayloadBox.Text = inspection.PayloadJson;
-        JwtDetailTab.IsSelected = true;
+        ShowSecurityJwt();
+    }
+
+    private void ShowSecurityJwt()
+    {
+        _securityTab.IsSelected = true;
+        _jwtSecurityExpander.IsEnabled = true;
+        _jwtSecurityExpander.IsExpanded = true;
     }
 
     private void ClearJwtDetail(string? status = null)
@@ -732,7 +882,7 @@ public partial class NetworkInspectorView : UserControl
         var endpoint = string.IsNullOrWhiteSpace(request.RemoteAddress) ? "Not recorded" : request.RemoteAddress + (request.RemotePort is null ? string.Empty : $":{request.RemotePort}");
         var lines = new List<string>
         {
-            "RECORDED BY CHROMIUM",
+            "RECORDED BY CHROMIUM (CDP)",
             $"Total:                 {request.DurationText}",
             $"Queued / blocked:      {TimingValue(timing.BlockedMs)}",
             $"DNS lookup:            {TimingValue(timing.DnsMs)}",
@@ -748,7 +898,8 @@ public partial class NetworkInspectorView : UserControl
             $"Connection reused:     {(request.ConnectionReused ? "Yes" : "No / not recorded")}",
             $"Response source:       {request.CacheSource}",
             string.Empty,
-            "Unavailable phases are shown as Not recorded; DevBrowser does not estimate them."
+            "No phase is estimated. Durations are calculated only from Chromium-recorded timestamps.",
+            "Unavailable phases are shown as Not recorded."
         };
         if (!string.IsNullOrEmpty(request.FailureReason)) lines.Add($"Failure: {request.FailureReason}");
         return string.Join(Environment.NewLine, lines);
@@ -850,12 +1001,6 @@ public partial class NetworkInspectorView : UserControl
     private static string DisplayValue(string? value) => string.IsNullOrEmpty(value) ? "(not present)" : value;
 
     private static string TimingValue(double? value) => value is null ? "Not recorded" : $"{value.Value:0.##} ms";
-
-    private static void ReplaceTabContent(FrameworkElement oldContent, FrameworkElement newContent)
-    {
-        var tab = (TabItem)oldContent.Parent;
-        tab.Content = newContent;
-    }
 
     private async Task UpdatePolicyAnalysisAsync(CapturedNetworkRequest request)
     {

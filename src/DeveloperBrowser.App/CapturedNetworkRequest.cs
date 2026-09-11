@@ -28,7 +28,7 @@ public sealed class CapturedNetworkRequest : INotifyPropertyChanged
     public string Protocol { get; private set; } = "Not recorded";
     public string? RemoteAddress { get; private set; }
     public int? RemotePort { get; private set; }
-    public string CacheSource { get; private set; } = "Network";
+    public string CacheSource { get; private set; } = "Not recorded";
     public bool ConnectionReused { get; private set; }
     public bool IsPinned { get => _isPinned; set => SetField(ref _isPinned, value); }
     public Dictionary<string, string> RequestHeaders { get; init; } = new(StringComparer.OrdinalIgnoreCase);
