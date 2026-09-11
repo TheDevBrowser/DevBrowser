@@ -43,6 +43,7 @@ public partial class MainWindow : Window
     {
         InitializeComponent();
         SourceInitialized += (_, _) => NativeWindowStyle.ApplyModernDarkChrome(this);
+        ContentRendered += (_, _) => NativeWindowStyle.ApplyModernDarkChrome(this);
         _bookmarks = bookmarks;
         _history = history;
         _pageMetadata = pageMetadata;
@@ -671,22 +672,32 @@ public partial class MainWindow : Window
         await _bookmarkManager.RefreshAsync();
     }
     private void BookmarkAddNote_Click(object sender, RoutedEventArgs e) => BookmarkNotePanel.Visibility = Visibility.Visible;
-    private void BookmarkCreateFolderToggle_Click(object sender, RoutedEventArgs e) => BookmarkNewFolderPanel.Visibility = Visibility.Visible;
+    private void BookmarkCreateFolderToggle_Click(object sender, RoutedEventArgs e)
+    {
+        var folders = (BookmarkFolderBox.ItemsSource as IEnumerable<BookmarkFolder>)?.ToList() ?? [];
+        var root = new BookmarkFolder(Guid.Empty, "Top level", DateTimeOffset.MinValue, false);
+        BookmarkParentFolderBox.ItemsSource = new[] { root }.Concat(folders).ToList();
+        BookmarkParentFolderBox.SelectedItem = BookmarkFolderBox.SelectedItem ?? root;
+        BookmarkNewFolderPanel.Visibility = Visibility.Visible;
+        BookmarkNewFolderBox.Focus();
+    }
 
     private async void BookmarkCreateFolder_Click(object sender, RoutedEventArgs e)
     {
         try
         {
-            var folder = await _bookmarks.CreateFolderAsync(BookmarkNewFolderBox.Text);
+            var parent = BookmarkParentFolderBox.SelectedItem as BookmarkFolder;
+            var folder = await _bookmarks.CreateFolderAsync(BookmarkNewFolderBox.Text,
+                parentFolderId: parent is { Id: var id } && id != Guid.Empty ? id : null);
             BookmarkFolderBox.ItemsSource = await _bookmarks.GetFoldersAsync();
             BookmarkFolderBox.SelectedItem = (BookmarkFolderBox.ItemsSource as IEnumerable<BookmarkFolder>)?.FirstOrDefault(item => item.Id == folder.Id);
             BookmarkNewFolderBox.Text = string.Empty;
             BookmarkNewFolderPanel.Visibility = Visibility.Collapsed;
             BookmarkHintText.Text = $"Folder “{folder.Name}” created";
         }
-        catch (ArgumentException)
+        catch (ArgumentException exception)
         {
-            BookmarkHintText.Text = "Enter a folder name";
+            BookmarkHintText.Text = exception.Message;
         }
     }
 

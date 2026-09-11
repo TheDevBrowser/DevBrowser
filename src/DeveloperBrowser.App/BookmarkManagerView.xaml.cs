@@ -28,16 +28,31 @@ public partial class BookmarkManagerView : UserControl
     {
         _folders = await _service.GetFoldersAsync();
         _allBookmarks = await _service.GetBookmarksAsync();
-        var folderChoices = new List<BookmarkFolderChoice> { new(null, "All bookmarks", _allBookmarks.Count) };
-        folderChoices.AddRange(_folders.Select(folder => new BookmarkFolderChoice(folder.Id, folder.Name, _allBookmarks.Count(bookmark => bookmark.FolderId == folder.Id))));
-        FolderList.ItemsSource = folderChoices;
-        FolderList.SelectedItem = folderChoices.FirstOrDefault(choice => choice.Id == _selectedFolderId) ?? folderChoices.FirstOrDefault();
+        var all = new BookmarkFolderChoice(null, "All bookmarks", _allBookmarks.Count, "All bookmarks");
+        var nodes = _folders.ToDictionary(folder => folder.Id, folder =>
+        {
+            var ids = BookmarkFolderHierarchy.Descendants(_folders, folder.Id);
+            return new BookmarkFolderChoice(folder.Id, folder.Name, _allBookmarks.Count(b => ids.Contains(b.FolderId)), folder.Path);
+        });
+        var roots = new List<BookmarkFolderChoice> { all };
+        foreach (var folder in _folders)
+        {
+            var node = nodes[folder.Id];
+            if (folder.ParentFolderId is { } parent && nodes.TryGetValue(parent, out var parentNode))
+                parentNode.Children.Add(node);
+            else roots.Add(node);
+        }
+        var selected = _selectedFolderId is { } id && nodes.TryGetValue(id, out var match) ? match : all;
+        selected.IsSelected = true;
+        FolderList.ItemsSource = roots;
         ApplyFilter();
     }
 
-    private void FolderList_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    private void FolderList_SelectionChanged(object sender, RoutedPropertyChangedEventArgs<object> e)
     {
-        _selectedFolderId = (FolderList.SelectedItem as BookmarkFolderChoice)?.Id;
+        _selectedFolderId = (e.NewValue as BookmarkFolderChoice)?.Id;
+        if (NewFolderLocationText is not null)
+            NewFolderLocationText.Text = _selectedFolderId is { } id ? $"Inside: {_folders.FirstOrDefault(f => f.Id == id)?.Path}" : "At top level";
         ApplyFilter();
     }
 
@@ -46,9 +61,10 @@ public partial class BookmarkManagerView : UserControl
     private void ApplyFilter()
     {
         var search = SearchBox?.Text.Trim() ?? string.Empty;
-        var folders = _folders.ToDictionary(folder => folder.Id, folder => folder.Name);
+        var folders = _folders.ToDictionary(folder => folder.Id, folder => folder.Path);
+        var included = _selectedFolderId is { } id ? BookmarkFolderHierarchy.Descendants(_folders, id) : null;
         var filtered = _allBookmarks.Where(bookmark =>
-            (_selectedFolderId is null || bookmark.FolderId == _selectedFolderId) &&
+            (included is null || included.Contains(bookmark.FolderId)) &&
             (string.IsNullOrWhiteSpace(search) ||
              bookmark.Title.Contains(search, StringComparison.OrdinalIgnoreCase) ||
              bookmark.Url.Contains(search, StringComparison.OrdinalIgnoreCase) ||
@@ -84,5 +100,22 @@ public partial class BookmarkManagerView : UserControl
         Deleted?.Invoke(this, EventArgs.Empty);
     }
 
-    private sealed record BookmarkFolderChoice(Guid? Id, string Name, int Count);
+    private async void CreateFolder_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            var folder = await _service.CreateFolderAsync(NewFolderNameBox.Text, parentFolderId: _selectedFolderId);
+            _selectedFolderId = folder.Id;
+            NewFolderNameBox.Clear();
+            NewFolderErrorText.Text = string.Empty;
+            await RefreshAsync();
+        }
+        catch (ArgumentException exception) { NewFolderErrorText.Text = exception.Message; }
+    }
+
+    private sealed record BookmarkFolderChoice(Guid? Id, string Name, int Count, string Path)
+    {
+        public List<BookmarkFolderChoice> Children { get; } = [];
+        public bool IsSelected { get; set; }
+    }
 }
