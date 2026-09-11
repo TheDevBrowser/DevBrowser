@@ -145,7 +145,7 @@ public partial class StructuredDataViewer : UserControl
             if (contentType.Contains("html", StringComparison.OrdinalIgnoreCase)) return StructuredDataKind.Html;
             if (contentType.Contains("xml", StringComparison.OrdinalIgnoreCase)) return StructuredDataKind.Xml;
         }
-        var trimmed = content.TrimStart();
+        var trimmed = content.TrimStart().TrimStart('\uFEFF', '\u200B').TrimStart();
         if (trimmed.StartsWith('{') || trimmed.StartsWith('[')) return StructuredDataKind.Json;
         if (Regex.IsMatch(trimmed, @"^<!doctype\s+html|^<html(?:\s|>)", RegexOptions.IgnoreCase)) return StructuredDataKind.Html;
         if (trimmed.StartsWith('<')) return StructuredDataKind.Xml;
@@ -192,18 +192,31 @@ public partial class StructuredDataViewer : UserControl
     {
         var document = new FlowDocument { PagePadding = new Thickness(0), FontFamily = new FontFamily("Cascadia Mono"), FontSize = 12 };
         var paragraph = new Paragraph { Margin = new Thickness(0) };
-        var pattern = @"<!--[\s\S]*?-->|</?[A-Za-z][^>]*>|[^<]+";
+        var pattern = @"<!--[\s\S]*?-->|<![^>]*>|</?[A-Za-z][^>]*>|[^<]+";
         foreach (Match token in Regex.Matches(html, pattern))
         {
             if (token.Value.StartsWith("<!--", StringComparison.Ordinal))
-                paragraph.Inlines.Add(new Run(token.Value) { Foreground = new SolidColorBrush(Color.FromRgb(106, 153, 85)) });
+                AddHighlightedText(paragraph, token.Value, Color.FromRgb(106, 153, 85));
             else if (token.Value.StartsWith('<'))
                 AddHighlightedTag(paragraph, token.Value);
             else
-                paragraph.Inlines.Add(new Run(token.Value) { Foreground = new SolidColorBrush(Color.FromRgb(220, 225, 232)) });
+                AddHighlightedText(paragraph, token.Value, Color.FromRgb(220, 225, 232));
         }
         document.Blocks.Add(paragraph);
         HtmlPrettyBox.Document = document;
+    }
+
+    private static void AddHighlightedText(Paragraph paragraph, string text, Color color)
+    {
+        // FlowDocument collapses newline characters inside a Run. Materialize them as
+        // LineBreak elements so the indentation produced by FormatHtml is actually visible.
+        var lines = Regex.Split(text, "\\r\\n|\\n|\\r");
+        for (var index = 0; index < lines.Length; index++)
+        {
+            if (index > 0) paragraph.Inlines.Add(new LineBreak());
+            if (lines[index].Length > 0)
+                paragraph.Inlines.Add(new Run(lines[index]) { Foreground = new SolidColorBrush(color) });
+        }
     }
 
     private static void AddHighlightedTag(Paragraph paragraph, string tag)

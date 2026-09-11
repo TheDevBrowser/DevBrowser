@@ -217,6 +217,7 @@ public partial class MainWindow : Window
         };
         await browser.CoreWebView2.AddScriptToExecuteOnDocumentCreatedAsync(BrowserInstrumentation.ConsoleForwarderScript);
         await _networkCapture.AttachAsync(browser.CoreWebView2);
+        if (_activeTab == tab) _networkCapture.SetActiveWebView(browser.CoreWebView2);
         if (navigate) browser.Source = ToAddress(address ?? "https://thedevbrowser.com");
         return tab;
     }
@@ -252,6 +253,7 @@ public partial class MainWindow : Window
     private void SelectTab(BrowserTab tab)
     {
         _activeTab = tab;
+        if (tab.Browser.CoreWebView2 is not null) _networkCapture.SetActiveWebView(tab.Browser.CoreWebView2);
         BrowserHost.Content = tab.Browser;
         foreach (var item in _tabs)
             item.Header.Background = item == tab ? (Brush)FindResource("SurfaceBrush") : Brushes.Transparent;
