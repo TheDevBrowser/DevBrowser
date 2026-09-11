@@ -1,6 +1,7 @@
 using DeveloperBrowser.Core.Bookmarks;
 using DeveloperBrowser.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage;
 
 namespace DeveloperBrowser.Infrastructure.Bookmarks;
 
@@ -15,7 +16,8 @@ public sealed class SqliteBookmarkRepository(IDbContextFactory<DeveloperBrowserD
               "Id" TEXT NOT NULL CONSTRAINT "PK_BookmarkFolders" PRIMARY KEY,
               "Name" TEXT NOT NULL,
               "CreatedAt" TEXT NOT NULL,
-              "IsDefault" INTEGER NOT NULL
+              "IsDefault" INTEGER NOT NULL,
+              "ParentFolderId" TEXT NULL REFERENCES "BookmarkFolders" ("Id") ON DELETE RESTRICT
             );
             """, cancellationToken);
         await db.Database.ExecuteSqlRawAsync("""
@@ -32,7 +34,23 @@ public sealed class SqliteBookmarkRepository(IDbContextFactory<DeveloperBrowserD
               CONSTRAINT "FK_Bookmarks_BookmarkFolders_FolderId" FOREIGN KEY ("FolderId") REFERENCES "BookmarkFolders" ("Id") ON DELETE RESTRICT
             );
             """, cancellationToken);
-        await db.Database.ExecuteSqlRawAsync("""CREATE UNIQUE INDEX IF NOT EXISTS "IX_BookmarkFolders_Name" ON "BookmarkFolders" ("Name");""", cancellationToken);
+        // Upgrade the existing flat schema without replacing folders or bookmarks.
+        await db.Database.OpenConnectionAsync(cancellationToken);
+        await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
+        var hasParent = false;
+        await using (var command = db.Database.GetDbConnection().CreateCommand())
+        {
+            command.Transaction = transaction.GetDbTransaction();
+            command.CommandText = "PRAGMA table_info('BookmarkFolders')";
+            await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+            while (await reader.ReadAsync(cancellationToken))
+                if (reader.GetString(1) == "ParentFolderId") hasParent = true;
+        }
+        if (!hasParent)
+            await db.Database.ExecuteSqlRawAsync("""ALTER TABLE "BookmarkFolders" ADD COLUMN "ParentFolderId" TEXT NULL REFERENCES "BookmarkFolders" ("Id") ON DELETE RESTRICT;""", cancellationToken);
+        await db.Database.ExecuteSqlRawAsync("""DROP INDEX IF EXISTS "IX_BookmarkFolders_Name";""", cancellationToken);
+        await db.Database.ExecuteSqlRawAsync("""CREATE UNIQUE INDEX IF NOT EXISTS "IX_BookmarkFolders_Parent_Name" ON "BookmarkFolders" ("ParentFolderId", "Name" COLLATE NOCASE) WHERE "ParentFolderId" IS NOT NULL;""", cancellationToken);
+        await db.Database.ExecuteSqlRawAsync("""CREATE UNIQUE INDEX IF NOT EXISTS "IX_BookmarkFolders_Root_Name" ON "BookmarkFolders" ("Name" COLLATE NOCASE) WHERE "ParentFolderId" IS NULL;""", cancellationToken);
         await db.Database.ExecuteSqlRawAsync("""CREATE UNIQUE INDEX IF NOT EXISTS "IX_Bookmarks_Url" ON "Bookmarks" ("Url");""", cancellationToken);
         await db.Database.ExecuteSqlRawAsync("""CREATE INDEX IF NOT EXISTS "IX_Bookmarks_FolderId" ON "Bookmarks" ("FolderId");""", cancellationToken);
         if (!await db.BookmarkFolders.AnyAsync(folder => folder.IsDefault, cancellationToken))
@@ -40,22 +58,23 @@ public sealed class SqliteBookmarkRepository(IDbContextFactory<DeveloperBrowserD
             db.BookmarkFolders.Add(new BookmarkFolderEntity { Name = "Default", IsDefault = true });
             await db.SaveChangesAsync(cancellationToken);
         }
+        await transaction.CommitAsync(cancellationToken);
     }
 
     public async Task<IReadOnlyList<BookmarkFolder>> GetFoldersAsync(CancellationToken cancellationToken = default)
     {
         await using var db = await factory.CreateDbContextAsync(cancellationToken);
         return await db.BookmarkFolders.AsNoTracking().OrderByDescending(folder => folder.IsDefault).ThenBy(folder => folder.Name)
-            .Select(folder => new BookmarkFolder(folder.Id, folder.Name, folder.CreatedAt, folder.IsDefault)).ToListAsync(cancellationToken);
+            .Select(folder => new BookmarkFolder(folder.Id, folder.Name, folder.CreatedAt, folder.IsDefault, folder.ParentFolderId)).ToListAsync(cancellationToken);
     }
 
-    public async Task<BookmarkFolder> AddFolderAsync(string name, CancellationToken cancellationToken = default)
+    public async Task<BookmarkFolder> AddFolderAsync(string name, CancellationToken cancellationToken = default, Guid? parentFolderId = null)
     {
         await using var db = await factory.CreateDbContextAsync(cancellationToken);
-        var entity = new BookmarkFolderEntity { Name = name, IsDefault = false };
+        var entity = new BookmarkFolderEntity { Name = name, IsDefault = false, ParentFolderId = parentFolderId };
         db.BookmarkFolders.Add(entity);
         await db.SaveChangesAsync(cancellationToken);
-        return new BookmarkFolder(entity.Id, entity.Name, entity.CreatedAt, entity.IsDefault);
+        return new BookmarkFolder(entity.Id, entity.Name, entity.CreatedAt, entity.IsDefault, entity.ParentFolderId);
     }
 
     public async Task<IReadOnlyList<BookmarkItem>> GetBookmarksAsync(CancellationToken cancellationToken = default)

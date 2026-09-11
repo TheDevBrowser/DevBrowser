@@ -18,7 +18,8 @@ public sealed class DeveloperBrowserDbContext(DbContextOptions<DeveloperBrowserD
         {
             entity.HasKey(item => item.Id);
             entity.Property(item => item.Name).HasMaxLength(80).IsRequired();
-            entity.HasIndex(item => item.Name).IsUnique();
+            entity.HasIndex(item => new { item.ParentFolderId, item.Name }).IsUnique();
+            entity.HasOne<BookmarkFolderEntity>().WithMany().HasForeignKey(item => item.ParentFolderId).OnDelete(DeleteBehavior.Restrict);
         });
         modelBuilder.Entity<BookmarkEntity>(entity =>
         {
@@ -37,7 +38,7 @@ public sealed class DeveloperBrowserDbContext(DbContextOptions<DeveloperBrowserD
     }
 }
 public sealed class RestHistoryEntry { public Guid Id { get; init; } = Guid.NewGuid(); public DateTimeOffset CreatedAt { get; init; } = DateTimeOffset.UtcNow; public required string Method { get; init; } public required string Url { get; init; } public int? StatusCode { get; init; } }
-public sealed class BookmarkFolderEntity { public Guid Id { get; set; } = Guid.NewGuid(); public required string Name { get; set; } public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow; public bool IsDefault { get; set; } }
+public sealed class BookmarkFolderEntity { public Guid? ParentFolderId { get; set; } public Guid Id { get; set; } = Guid.NewGuid(); public required string Name { get; set; } public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow; public bool IsDefault { get; set; } }
 public sealed class BookmarkEntity { public Guid Id { get; set; } = Guid.NewGuid(); public Guid FolderId { get; set; } public required string Title { get; set; } public required string Url { get; set; } public string? Description { get; set; } public string? Note { get; set; } public string? FaviconUrl { get; set; } public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow; public DateTimeOffset UpdatedAt { get; set; } = DateTimeOffset.UtcNow; }
 public sealed class CollectionEntity { public Guid Id { get; set; } = Guid.NewGuid(); public required string Name { get; set; } public string? Description { get; set; } public int SortOrder { get; set; } public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow; public DateTimeOffset UpdatedAt { get; set; } = DateTimeOffset.UtcNow; }
 public sealed class CollectionFolderEntity { public Guid Id { get; set; } = Guid.NewGuid(); public Guid CollectionId { get; set; } public Guid? ParentFolderId { get; set; } public required string Name { get; set; } public int SortOrder { get; set; } public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow; public DateTimeOffset UpdatedAt { get; set; } = DateTimeOffset.UtcNow; }
