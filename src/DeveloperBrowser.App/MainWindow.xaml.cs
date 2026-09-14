@@ -217,6 +217,7 @@ public partial class MainWindow : Window
             }
         };
         await browser.CoreWebView2.AddScriptToExecuteOnDocumentCreatedAsync(BrowserInstrumentation.ConsoleForwarderScript);
+        await browser.CoreWebView2.AddScriptToExecuteOnDocumentCreatedAsync(JsonDocumentViewer.Script);
         await _networkCapture.AttachAsync(browser.CoreWebView2);
         if (_activeTab == tab) _networkCapture.SetActiveWebView(browser.CoreWebView2);
         if (navigate) browser.Source = ToAddress(address ?? "https://thedevbrowser.com");
