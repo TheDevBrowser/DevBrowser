@@ -412,16 +412,20 @@ public partial class NetworkInspectorView : UserControl
     private async void RequestList_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
         _selectedRequest = RequestList.SelectedItem as CapturedNetworkRequest;
-        if (_selectedRequest is null) { ClearDetail(); return; }
-        PopulateDetail(_selectedRequest);
-        await UpdatePolicyAnalysisAsync(_selectedRequest);
+        var request = _selectedRequest;
+        if (request is null) { ClearDetail(); return; }
+        PopulateDetail(request);
+        await UpdatePolicyAnalysisAsync(request);
+        if (!ReferenceEquals(request, _selectedRequest) || !ReferenceEquals(request, RequestList.SelectedItem)) return;
         if (_capture is not null)
         {
-            await _capture.EnsureResponseBodyAsync(_selectedRequest);
-            if (_selectedRequest == RequestList.SelectedItem) PopulateResponse(_selectedRequest);
+            await _capture.EnsureResponseBodyAsync(request);
+            // Selection can be cleared or changed while the response body is loading.
+            if (!ReferenceEquals(request, _selectedRequest) || !ReferenceEquals(request, RequestList.SelectedItem)) return;
+            PopulateResponse(request);
         }
-        if (_comparisonAwaitingTarget && _comparisonBaseRequest is not null && !ReferenceEquals(_comparisonBaseRequest, _selectedRequest))
-            await CompleteComparisonAsync(_comparisonBaseRequest, _selectedRequest);
+        if (_comparisonAwaitingTarget && _comparisonBaseRequest is not null && !ReferenceEquals(_comparisonBaseRequest, request))
+            await CompleteComparisonAsync(_comparisonBaseRequest, request);
     }
 
     private void PopulateDetail(CapturedNetworkRequest request)
