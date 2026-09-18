@@ -12,3 +12,5 @@ jobs:
           dotnet-version: 9.0.x
       - run: dotnet restore DeveloperBrowser.slnx
       - run: dotnet build DeveloperBrowser.slnx --configuration Release --no-restore
+      - name: Verify protected request storage
+        run: dotnet run --project tests/DeveloperBrowser.SecurityChecks/DeveloperBrowser.SecurityChecks.csproj --configuration Release --no-build

@@ -4,4 +4,7 @@
     <Project Path="src/DeveloperBrowser.Core/DeveloperBrowser.Core.csproj" />
     <Project Path="src/DeveloperBrowser.Infrastructure/DeveloperBrowser.Infrastructure.csproj" />
   </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/DeveloperBrowser.SecurityChecks/DeveloperBrowser.SecurityChecks.csproj" />
+  </Folder>
 </Solution>
