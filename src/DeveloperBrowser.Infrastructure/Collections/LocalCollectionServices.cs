@@ -6,23 +6,166 @@ using Microsoft.EntityFrameworkCore;
 
 namespace DeveloperBrowser.Infrastructure.Collections;
 
-public sealed class LocalCollectionService(IDbContextFactory<DeveloperBrowserDbContext> factory) : ICollectionService
+public sealed class LocalCollectionService(IDbContextFactory<DeveloperBrowserDbContext> factory, ISecretStore secrets) : ICollectionService
 {
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
-    private async Task<DeveloperBrowserDbContext> Db(CancellationToken ct) { var db = await factory.CreateDbContextAsync(ct); await db.Database.EnsureCreatedAsync(ct); await CollectionSchema.EnsureAsync(db, ct); return db; }
-    public async Task<IReadOnlyList<RestCollection>> GetCollectionsAsync(CancellationToken ct = default) { await using var db = await Db(ct); var collections = await db.Collections.OrderBy(x => x.SortOrder).ThenBy(x => x.Name).ToListAsync(ct); var folders = await db.CollectionFolders.ToListAsync(ct); var requests = await db.SavedRequests.OrderBy(x => x.SortOrder).ThenBy(x => x.Name).ToListAsync(ct); return collections.Select(c => ToModel(c, folders.Where(x => x.CollectionId == c.Id), requests.Where(x => x.CollectionId == c.Id))).ToArray(); }
+    public async Task InitializeAsync(CancellationToken ct = default)
+    {
+        await using var db = await Db(ct);
+        // Retire old WAL pages where possible. Backups and other open connections
+        // can retain old plaintext; this is not a forensic secure-erasure guarantee.
+        await db.Database.ExecuteSqlRawAsync("PRAGMA wal_checkpoint(TRUNCATE);", ct);
+    }
+    private async Task<DeveloperBrowserDbContext> Db(CancellationToken ct)
+    {
+        var db = await factory.CreateDbContextAsync(ct);
+        try
+        {
+            await db.Database.EnsureCreatedAsync(ct);
+            await CollectionSchema.EnsureAsync(db, ct);
+            await db.Database.ExecuteSqlRawAsync("PRAGMA secure_delete=ON;", ct);
+            // Store each immutable encrypted payload before committing its reference. On
+            // interruption the original row remains readable and migration can be retried.
+            var legacy = await db.SavedRequests.Where(x => x.SecretStoreKey == null).ToListAsync(ct);
+            foreach (var request in legacy) await ProtectAsync(request, ct);
+            if (legacy.Count > 0) await db.SaveChangesAsync(ct);
+            return db;
+        }
+        catch { await db.DisposeAsync(); throw; }
+    }
+    public async Task<IReadOnlyList<RestCollection>> GetCollectionsAsync(CancellationToken ct = default)
+    {
+        await using var db = await Db(ct);
+        var collections = await db.Collections.OrderBy(x => x.SortOrder).ThenBy(x => x.Name).ToListAsync(ct);
+        var folders = await db.CollectionFolders.ToListAsync(ct);
+        var requests = await db.SavedRequests.OrderBy(x => x.SortOrder).ThenBy(x => x.Name).ToListAsync(ct);
+        var result = collections.Select(c => ToModel(c, folders.Where(x => x.CollectionId == c.Id), [])).ToArray();
+        foreach (var request in requests)
+        {
+            var collection = result.FirstOrDefault(x => x.Id == request.CollectionId);
+            if (collection is not null) collection.Requests.Add(await ReadRequestAsync(request, ct));
+        }
+        return result;
+    }
     public async Task<RestCollection> CreateCollectionAsync(string name, string? description = null, CancellationToken ct = default) { name = Required(name, 160); await using var db = await Db(ct); var item = new CollectionEntity { Name = name, Description = Trim(description, 1000), SortOrder = await db.Collections.CountAsync(ct) }; db.Collections.Add(item); await db.SaveChangesAsync(ct); return ToModel(item, [], []); }
     public async Task RenameCollectionAsync(Guid id, string name, CancellationToken ct = default) { await using var db = await Db(ct); var item = await db.Collections.FindAsync([id], ct) ?? throw new InvalidOperationException("Collection not found."); item.Name = Required(name, 160); item.UpdatedAt = DateTimeOffset.UtcNow; await db.SaveChangesAsync(ct); }
     public async Task UpdateCollectionAsync(Guid id, string name, string? description, CancellationToken ct = default) { await using var db = await Db(ct); var item = await db.Collections.FindAsync([id], ct) ?? throw new InvalidOperationException("Collection not found."); item.Name = Required(name, 160); item.Description = Trim(description, 1000); item.UpdatedAt = DateTimeOffset.UtcNow; await db.SaveChangesAsync(ct); }
-    public async Task DeleteCollectionAsync(Guid id, CancellationToken ct = default) { await using var db = await Db(ct); db.SavedRequests.RemoveRange(db.SavedRequests.Where(x => x.CollectionId == id)); db.CollectionFolders.RemoveRange(db.CollectionFolders.Where(x => x.CollectionId == id)); var collection = await db.Collections.FindAsync([id], ct); if (collection is not null) db.Collections.Remove(collection); await db.SaveChangesAsync(ct); }
+    public async Task DeleteCollectionAsync(Guid id, CancellationToken ct = default)
+    {
+        await using var db = await Db(ct);
+        var removed = await db.SavedRequests.Where(x => x.CollectionId == id).ToListAsync(ct);
+        db.SavedRequests.RemoveRange(removed);
+        db.CollectionFolders.RemoveRange(db.CollectionFolders.Where(x => x.CollectionId == id));
+        var collection = await db.Collections.FindAsync([id], ct);
+        if (collection is not null) db.Collections.Remove(collection);
+        await db.SaveChangesAsync(ct);
+        foreach (var request in removed) await RemoveSecretAsync(request.SecretStoreKey);
+    }
     public async Task<RestCollectionFolder> CreateFolderAsync(Guid collectionId, string name, Guid? parentFolderId = null, CancellationToken ct = default) { await using var db = await Db(ct); if (!await db.Collections.AnyAsync(x => x.Id == collectionId, ct)) throw new InvalidOperationException("Collection not found."); var item = new CollectionFolderEntity { CollectionId = collectionId, ParentFolderId = parentFolderId, Name = Required(name, 160), SortOrder = await db.CollectionFolders.CountAsync(x => x.CollectionId == collectionId, ct) }; db.CollectionFolders.Add(item); await db.SaveChangesAsync(ct); return new() { Id = item.Id, CollectionId = item.CollectionId, ParentFolderId = item.ParentFolderId, Name = item.Name, SortOrder = item.SortOrder, CreatedAt = item.CreatedAt, UpdatedAt = item.UpdatedAt }; }
     public async Task RenameFolderAsync(Guid id, string name, CancellationToken ct = default) { await using var db = await Db(ct); var item = await db.CollectionFolders.FindAsync([id], ct) ?? throw new InvalidOperationException("Folder not found."); item.Name = Required(name, 160); item.UpdatedAt = DateTimeOffset.UtcNow; await db.SaveChangesAsync(ct); }
-    public async Task DeleteFolderAsync(Guid id, CancellationToken ct = default) { await using var db = await Db(ct); var folders = await db.CollectionFolders.ToListAsync(ct); var toDelete = new HashSet<Guid> { id }; var queue = new Queue<Guid>(); queue.Enqueue(id); while (queue.TryDequeue(out var parentId)) foreach (var child in folders.Where(folder => folder.ParentFolderId == parentId)) if (toDelete.Add(child.Id)) queue.Enqueue(child.Id); db.SavedRequests.RemoveRange(db.SavedRequests.Where(request => request.FolderId.HasValue && toDelete.Contains(request.FolderId.Value))); db.CollectionFolders.RemoveRange(folders.Where(folder => toDelete.Contains(folder.Id))); await db.SaveChangesAsync(ct); }
-    public async Task<SavedRestRequest> SaveRequestAsync(SavedRestRequest request, CancellationToken ct = default) { Validate(request); await using var db = await Db(ct); var existing = await db.SavedRequests.FindAsync([request.Id], ct); if (existing is null) { existing = new SavedRequestEntity { Id = request.Id, CreatedAt = request.CreatedAt, Name = request.Name, Method = request.Method, Url = request.Url }; db.SavedRequests.Add(existing); } Copy(request, existing); await db.SaveChangesAsync(ct); return ToModel(existing); }
-    public async Task DeleteRequestAsync(Guid id, CancellationToken ct = default) { await using var db = await Db(ct); var item = await db.SavedRequests.FindAsync([id], ct); if (item is not null) { db.SavedRequests.Remove(item); await db.SaveChangesAsync(ct); } }
-    public async Task<SavedRestRequest> DuplicateRequestAsync(Guid id, CancellationToken ct = default) { await using var db = await Db(ct); var item = await db.SavedRequests.FindAsync([id], ct) ?? throw new InvalidOperationException("Saved request not found."); var copy = ToModel(item); copy.Id = Guid.NewGuid(); copy.Name += " Copy"; copy.UpdatedAt = DateTimeOffset.UtcNow; return await SaveRequestAsync(copy, ct); }
+    public async Task DeleteFolderAsync(Guid id, CancellationToken ct = default)
+    {
+        await using var db = await Db(ct);
+        var folders = await db.CollectionFolders.ToListAsync(ct);
+        var toDelete = new HashSet<Guid> { id };
+        var queue = new Queue<Guid>(); queue.Enqueue(id);
+        while (queue.TryDequeue(out var parentId))
+            foreach (var child in folders.Where(folder => folder.ParentFolderId == parentId))
+                if (toDelete.Add(child.Id)) queue.Enqueue(child.Id);
+        var removed = await db.SavedRequests.Where(request => request.FolderId.HasValue && toDelete.Contains(request.FolderId.Value)).ToListAsync(ct);
+        db.SavedRequests.RemoveRange(removed);
+        db.CollectionFolders.RemoveRange(folders.Where(folder => toDelete.Contains(folder.Id)));
+        await db.SaveChangesAsync(ct);
+        foreach (var request in removed) await RemoveSecretAsync(request.SecretStoreKey);
+    }
+    public async Task<SavedRestRequest> SaveRequestAsync(SavedRestRequest request, CancellationToken ct = default)
+    {
+        Validate(request);
+        await using var db = await Db(ct);
+        var existing = await db.SavedRequests.FindAsync([request.Id], ct);
+        if (existing is null)
+        {
+            existing = new SavedRequestEntity { Id = request.Id, CreatedAt = request.CreatedAt, Name = request.Name, Method = request.Method, Url = request.Url };
+            db.SavedRequests.Add(existing);
+        }
+        var oldKey = existing.SecretStoreKey;
+        Copy(request, existing);
+        var result = ToModel(existing);
+        await ProtectAsync(existing, ct);
+        await db.SaveChangesAsync(ct);
+        await RemoveSecretAsync(oldKey);
+        return result;
+    }
+    public async Task DeleteRequestAsync(Guid id, CancellationToken ct = default)
+    {
+        await using var db = await Db(ct);
+        var item = await db.SavedRequests.FindAsync([id], ct);
+        if (item is null) return;
+        db.SavedRequests.Remove(item);
+        await db.SaveChangesAsync(ct);
+        await RemoveSecretAsync(item.SecretStoreKey);
+    }
+    public async Task<SavedRestRequest> DuplicateRequestAsync(Guid id, CancellationToken ct = default) { await using var db = await Db(ct); var item = await db.SavedRequests.FindAsync([id], ct) ?? throw new InvalidOperationException("Saved request not found."); var copy = await ReadRequestAsync(item, ct); copy.Id = Guid.NewGuid(); copy.Name += " Copy"; copy.UpdatedAt = DateTimeOffset.UtcNow; return await SaveRequestAsync(copy, ct); }
     public async Task MoveRequestAsync(Guid id, Guid collectionId, Guid? folderId, CancellationToken ct = default) { await using var db = await Db(ct); var item = await db.SavedRequests.FindAsync([id], ct) ?? throw new InvalidOperationException("Saved request not found."); item.CollectionId = collectionId; item.FolderId = folderId; item.UpdatedAt = DateTimeOffset.UtcNow; await db.SaveChangesAsync(ct); }
-    public async Task<IReadOnlyList<SavedRestRequest>> SearchAsync(string query, CancellationToken ct = default) { await using var db = await Db(ct); query = query.Trim(); var items = db.SavedRequests.AsQueryable(); if (!string.IsNullOrWhiteSpace(query)) items = items.Where(x => x.Name.Contains(query) || x.Url.Contains(query) || x.Method.Contains(query)); return (await items.OrderBy(x => x.Name).Take(250).ToListAsync(ct)).Select(ToModel).ToArray(); }
+    public async Task<IReadOnlyList<SavedRestRequest>> SearchAsync(string query, CancellationToken ct = default)
+    {
+        await using var db = await Db(ct);
+        query = query.Trim();
+        var result = new List<SavedRestRequest>();
+        // URLs may contain credentials, so they are searched only after decryption.
+        await foreach (var entity in db.SavedRequests.AsNoTracking().OrderBy(x => x.Name).AsAsyncEnumerable().WithCancellation(ct))
+        {
+            var item = await ReadRequestAsync(entity, ct);
+            if (query.Length == 0 || item.Name.Contains(query) || item.Url.Contains(query) || item.Method.Contains(query)) result.Add(item);
+            if (result.Count == 250) break;
+        }
+        return result;
+    }
+
+    private async Task ProtectAsync(SavedRequestEntity entity, CancellationToken ct)
+    {
+        var key = $"saved-request:{entity.Id}:{Guid.NewGuid()}";
+        var payload = JsonSerializer.Serialize(new RequestSecrets(entity.Url, entity.ParametersJson, entity.HeadersJson,
+            entity.Body, entity.AuthToken, entity.AuthUsername, entity.AuthPassword), Json);
+        await secrets.SaveAsync(key, payload, ct);
+        // Verify durable readability before removing the original plaintext.
+        if (await secrets.GetAsync(key, ct) != payload) throw new InvalidOperationException("Could not verify protected request storage.");
+        entity.SecretStoreKey = key;
+        entity.Url = string.Empty;
+        entity.ParametersJson = entity.HeadersJson = "[]";
+        entity.Body = string.Empty;
+        entity.AuthToken = entity.AuthUsername = entity.AuthPassword = null;
+    }
+
+    private async Task<SavedRestRequest> ReadRequestAsync(SavedRequestEntity entity, CancellationToken ct)
+    {
+        var model = ToModel(entity);
+        var payload = entity.SecretStoreKey is { } key ? await secrets.GetAsync(key, ct) : null;
+        if (payload is null) throw new InvalidOperationException("Protected request data is unavailable. Restore its secret store using the original Windows account.");
+        var values = JsonSerializer.Deserialize<RequestSecrets>(payload, Json)
+            ?? throw new InvalidOperationException("Protected request data is invalid.");
+        model.Url = values.Url;
+        model.Parameters = Deserialize(values.ParametersJson);
+        model.Headers = Deserialize(values.HeadersJson);
+        model.Body = values.Body;
+        model.AuthToken = values.AuthToken;
+        model.AuthUsername = values.AuthUsername;
+        model.AuthPassword = values.AuthPassword;
+        return model;
+    }
+
+    private async Task RemoveSecretAsync(string? key)
+    {
+        if (key is null) return;
+        // A cleanup failure must not misreport an already committed save/deletion.
+        // Interrupted writes or cleanup can leave encrypted, unreferenced files.
+        try { await secrets.RemoveAsync(key); }
+        catch (IOException) { }
+        catch (UnauthorizedAccessException) { }
+    }
+
+    private sealed record RequestSecrets(string Url, string ParametersJson, string HeadersJson, string Body,
+        string? AuthToken, string? AuthUsername, string? AuthPassword);
     internal static RestCollection ToModel(CollectionEntity c, IEnumerable<CollectionFolderEntity> folders, IEnumerable<SavedRequestEntity> requests) => new() { Id = c.Id, Name = c.Name, Description = c.Description, SortOrder = c.SortOrder, CreatedAt = c.CreatedAt, UpdatedAt = c.UpdatedAt, Folders = folders.Select(x => new RestCollectionFolder { Id = x.Id, CollectionId = x.CollectionId, ParentFolderId = x.ParentFolderId, Name = x.Name, SortOrder = x.SortOrder, CreatedAt = x.CreatedAt, UpdatedAt = x.UpdatedAt }).ToList(), Requests = requests.Select(ToModel).ToList() };
     internal static SavedRestRequest ToModel(SavedRequestEntity x) => new() { Id = x.Id, CollectionId = x.CollectionId, FolderId = x.FolderId, Name = x.Name, Description = x.Description, Method = x.Method, Url = x.Url, Parameters = Deserialize(x.ParametersJson), Headers = Deserialize(x.HeadersJson), Body = x.Body, ContentType = x.ContentType, AuthType = x.AuthType, AuthToken = x.AuthToken, AuthUsername = x.AuthUsername, AuthPassword = x.AuthPassword, SortOrder = x.SortOrder, CreatedAt = x.CreatedAt, UpdatedAt = x.UpdatedAt };
     private static List<SavedRequestField> Deserialize(string text) { try { return JsonSerializer.Deserialize<List<SavedRequestField>>(text, Json) ?? []; } catch { return []; } }
@@ -69,6 +212,7 @@ internal static class CollectionSchema
         await AddColumnIfMissingAsync(db, "Environments", "Color", "TEXT NOT NULL DEFAULT '#4ADE80'", ct);
         await AddColumnIfMissingAsync(db, "EnvironmentVariables", "Description", "TEXT NULL", ct);
         await AddColumnIfMissingAsync(db, "EnvironmentVariables", "IsEnabled", "INTEGER NOT NULL DEFAULT 1", ct);
+        await AddColumnIfMissingAsync(db, "SavedRequests", "SecretStoreKey", "TEXT NULL", ct);
     }
     private static async Task AddColumnIfMissingAsync(DeveloperBrowserDbContext db, string table, string column, string definition, CancellationToken ct)
     {
@@ -87,6 +231,7 @@ internal static class CollectionSchema
                 ("Environments", "Color") => "ALTER TABLE Environments ADD COLUMN Color TEXT NOT NULL DEFAULT '#4ADE80';",
                 ("EnvironmentVariables", "Description") => "ALTER TABLE EnvironmentVariables ADD COLUMN Description TEXT NULL;",
                 ("EnvironmentVariables", "IsEnabled") => "ALTER TABLE EnvironmentVariables ADD COLUMN IsEnabled INTEGER NOT NULL DEFAULT 1;",
+                ("SavedRequests", "SecretStoreKey") => "ALTER TABLE SavedRequests ADD COLUMN SecretStoreKey TEXT NULL;",
                 _ => throw new InvalidOperationException("Unsupported local schema update.")
             };
             await db.Database.ExecuteSqlRawAsync(statement, ct);

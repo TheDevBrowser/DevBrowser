@@ -58,6 +58,34 @@ test('large arrays render in batches', () => {
     children.children.at(-1).events.click();
     assert.equal(children.children.length, 205);
 });
+
+const textOf = node => node.textContent ?? node.children.map(textOf).join('');
+const firstArrayItem = doc => doc.body.children[1].children[0].children[0].children[1].children[0];
+
+test('collapsed objects preview values without loading children; expansion preserves all properties', () => {
+    const value = { id: 'SYS-001', name: 'Aster 1', sector: 'Sector-01', planets: [1, 2] };
+    const doc = render(JSON.stringify([value]));
+    const item = firstArrayItem(doc);
+    const preview = item.children[0].children[2];
+    assert.equal(textOf(preview), '{ "id": "SYS-001", "name": "Aster 1", "sector": "Sector-01", … }');
+    assert.equal(preview.children[2].className, 'string');
+    assert.equal(item.children[1].children.length, 0);
+    item.open = true; item.events.toggle();
+    assert.equal(item.children[1].children.length, 4);
+    assert.equal(textOf(item.children[1].children[0]), '"id": "SYS-001"');
+});
+
+test('previews handle empty objects, nested values, scalars and escaped long strings', () => {
+    for (const [value, expected] of [
+        [{}, '{}'],
+        [{ object: { deep: 1 }, array: [1], nil: null }, '{ "object": {…}, "array": […], "nil": null }'],
+        [{ count: 42, active: false }, '{ "count": 42, "active": false }'],
+        [{ text: '<script>\n' + 'x'.repeat(100) }, '{ "text": ' + JSON.stringify(('<script>\n' + 'x'.repeat(100)).slice(0, 60) + '…') + ' }']
+    ]) {
+        const item = firstArrayItem(render(JSON.stringify([value])));
+        assert.equal(textOf(item.children[0].children[2]), expected);
+    }
+});
 test('JSON MIME variants, empty collections and scalar roots render', () => {
     for (const mime of ['application/problem+json', 'application/json; charset=utf-8', 'text/json'])
         for (const raw of ['{}', '[]', 'null', 'true', '42', '"hello"'])

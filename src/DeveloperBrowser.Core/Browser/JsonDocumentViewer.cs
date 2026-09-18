@@ -46,6 +46,9 @@ public static class JsonDocumentViewer
                     main { padding: 16px 24px; font: 13px/1.7 Consolas, monospace; }
                     details > div { margin-left: 22px; border-left: 1px solid GrayText; padding-left: 12px; }
                     summary { cursor: pointer; width: fit-content; }
+                    .preview { white-space: pre; }
+                    details[open] > summary > .preview { display: none; }
+                    details:not([open]) > summary > .object-meta { display: none; }
                     .key { color: light-dark(#854600, #ffc785); }
                     .string { color: light-dark(#166534, #86efac); }
                     .number, .boolean { color: light-dark(#1d4ed8, #93c5fd); }
@@ -92,7 +95,25 @@ public static class JsonDocumentViewer
                     const branch = element('details');
                     const summary = element('summary');
                     summary.append(element('span', label, 'key'), element('span',
-                        array ? `Array (${keys.length})` : `Object (${keys.length})`, 'meta'));
+                        array ? `Array (${keys.length})` : `Object (${keys.length})`, array ? 'meta' : 'meta object-meta'));
+                    if (!array) {
+                        const preview = element('span', undefined, 'preview');
+                        const shorten = text => text.length > 60 ? text.slice(0, 60) + '…' : text;
+                        preview.append(element('span', keys.length ? '{ ' : '{}', 'meta'));
+                        keys.slice(0, 3).forEach((key, index) => {
+                            if (index) preview.append(element('span', ', ', 'meta'));
+                            preview.append(element('span', JSON.stringify(shorten(key)) + ': ', 'key'));
+                            const value = data[key];
+                            const type = value === null ? 'null' : typeof value;
+                            const text = type === 'object'
+                                ? (Array.isArray(value) ? '[…]' : '{…}')
+                                : JSON.stringify(type === 'string' ? shorten(value) : value);
+                            preview.append(element('span', text, type === 'object' ? 'meta' : type));
+                        });
+                        if (keys.length > 3) preview.append(element('span', ', …', 'meta'));
+                        if (keys.length) preview.append(element('span', ' }', 'meta'));
+                        summary.append(preview);
+                    }
                     const children = element('div');
                     branch.append(summary, children);
                     let offset = 0;

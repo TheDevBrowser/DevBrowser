@@ -36,6 +36,7 @@ public partial class App : Application
             _crashReporting = _provider.GetRequiredService<CrashReportingService>();
             var bookmarks = _provider.GetRequiredService<IBookmarkService>();
             await bookmarks.InitializeAsync();
+            await _provider.GetRequiredService<ICollectionService>().InitializeAsync();
             var window = new MainWindow(bookmarks, _provider.GetRequiredService<IBrowsingHistoryService>(), _provider.GetRequiredService<PageMetadataService>(), _provider.GetRequiredService<ICollectionService>(), _provider.GetRequiredService<IEnvironmentService>(), _provider.GetRequiredService<IVariableResolver>(), _provider.GetRequiredService<ICollectionImportExportService>(), _provider.GetRequiredService<IAppUpdateService>(), _crashReporting, dataDirectory);
             MainWindow = window;
             window.Show();
