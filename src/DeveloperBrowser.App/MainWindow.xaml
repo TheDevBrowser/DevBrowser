@@ -21,6 +21,39 @@
                 </DrawingGroup>
             </DrawingImage.Drawing>
         </DrawingImage>
+        <Style x:Key="NewTabButton" TargetType="Button">
+            <Setter Property="Foreground" Value="{StaticResource AccentBrush}" />
+            <Setter Property="Background" Value="#FF29341D" />
+            <Setter Property="BorderBrush" Value="#FF718E32" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Padding" Value="12,0" />
+            <Setter Property="Height" Value="34" />
+            <Setter Property="Margin" Value="8,3,0,3" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Surface" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="8">
+                            <ContentPresenter Margin="{TemplateBinding Padding}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Surface" Property="Background" Value="#FF384923" />
+                                <Setter TargetName="Surface" Property="BorderBrush" Value="{StaticResource AccentBrush}" />
+                            </Trigger>
+                            <Trigger Property="IsKeyboardFocused" Value="True">
+                                <Setter TargetName="Surface" Property="BorderBrush" Value="{StaticResource AccentBrush}" />
+                                <Setter TargetName="Surface" Property="BorderThickness" Value="2" />
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="Surface" Property="Background" Value="{StaticResource AccentBrush}" />
+                                <Setter Property="Foreground" Value="{StaticResource CanvasBrush}" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
         <Style x:Key="TabCloseButton" TargetType="Button">
             <Setter Property="Foreground" Value="{StaticResource MutedTextBrush}" />
             <Setter Property="Background" Value="Transparent" />
@@ -155,7 +188,7 @@ M15.5,3H17.5C18.9,3 20,4.1 20,5.5V9C20,10.1 20.9,11 22,11V13C20.9,13 20,13.9 20,
                 <Border Grid.Column="1" Background="{StaticResource SurfaceBrush}" CornerRadius="12" Margin="18,0" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1">
                     <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="42" /><ColumnDefinition Width="*" /><ColumnDefinition Width="46" /></Grid.ColumnDefinitions>
                         <TextBlock Text="⌕" FontFamily="Segoe UI Symbol" Foreground="{StaticResource MutedTextBrush}" FontSize="18" HorizontalAlignment="Center" VerticalAlignment="Center" />
-                        <TextBox x:Name="AddressBar" Grid.Column="1" BorderThickness="0" Background="Transparent" Padding="8,8" FontSize="14" Text="https://thedevbrowser.com" VerticalContentAlignment="Center" KeyDown="AddressBar_KeyDown" MouseDoubleClick="AddressBar_MouseDoubleClick" />
+                        <TextBox x:Name="AddressBar" Grid.Column="1" BorderThickness="0" Background="Transparent" Padding="8,8" FontSize="14" VerticalContentAlignment="Center" KeyDown="AddressBar_KeyDown" MouseDoubleClick="AddressBar_MouseDoubleClick" />
                         <TextBlock Grid.Column="2" Text="⌁" Foreground="{StaticResource AccentBrush}" FontSize="20" HorizontalAlignment="Center" VerticalAlignment="Center" />
                     </Grid>
                 </Border>
@@ -171,11 +204,13 @@ M15.5,3H17.5C18.9,3 20,4.1 20,5.5V9C20,10.1 20.9,11 22,11V13C20.9,13 20,13.9 20,
             <Grid.RowDefinitions><RowDefinition Height="42" /><RowDefinition Height="*" /></Grid.RowDefinitions>
             <Border Background="{StaticResource PanelBrush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,0,1">
                 <DockPanel Margin="14,0">
-                    <Button DockPanel.Dock="Right" Style="{StaticResource IconButton}" Content="+" Width="32" Height="32" Margin="4,5" Click="AddTab_Click" ToolTip="New tab" />
+                    <Button DockPanel.Dock="Right" Style="{StaticResource NewTabButton}" Click="AddTab_Click" ToolTip="New tab (Ctrl+T)" AutomationProperties.Name="New tab" AutomationProperties.AcceleratorKey="Ctrl+T">
+                        <Path Data="M8,1V15 M1,8H15" Width="16" Height="16" Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" StrokeThickness="2" StrokeStartLineCap="Round" StrokeEndLineCap="Round" VerticalAlignment="Center" />
+                    </Button>
                     <StackPanel x:Name="TabStrip" Orientation="Horizontal" />
                 </DockPanel>
             </Border>
-            <Border Grid.Row="1" Background="White"><ContentControl x:Name="BrowserHost" /></Border>
+            <Border Grid.Row="1" Background="{StaticResource CanvasBrush}"><ContentControl x:Name="BrowserHost" /></Border>
         </Grid>
 
         <Grid x:Name="RestWorkspace" Grid.Row="1" Grid.Column="1" Grid.ColumnSpan="3" Grid.RowSpan="3" Visibility="Collapsed" Panel.ZIndex="10">
