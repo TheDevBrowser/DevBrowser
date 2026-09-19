@@ -21,6 +21,7 @@ namespace DeveloperBrowser.App;
 public partial class MainWindow : Window
 {
     private readonly List<BrowserTab> _tabs = [];
+    private readonly Stack<string?> _closedTabs = new();
     private readonly NetworkCaptureService _networkCapture = new();
     private readonly HarCaptureService _harCapture = new();
     private readonly IBookmarkService _bookmarks;
@@ -42,6 +43,7 @@ public partial class MainWindow : Window
     public MainWindow(IBookmarkService bookmarks, IBrowsingHistoryService history, PageMetadataService pageMetadata, ICollectionService collections, IEnvironmentService environments, IVariableResolver variables, ICollectionImportExportService collectionImportExport, IAppUpdateService appUpdates, CrashReportingService crashReporting, string dataDirectory)
     {
         InitializeComponent();
+        PreviewKeyDown += BrowserShortcut_PreviewKeyDown;
         SourceInitialized += (_, _) => NativeWindowStyle.ApplyModernDarkChrome(this);
         ContentRendered += (_, _) => NativeWindowStyle.ApplyModernDarkChrome(this);
         _bookmarks = bookmarks;
@@ -96,7 +98,7 @@ public partial class MainWindow : Window
         };
         Loaded += async (_, _) =>
         {
-            await CreateTabAsync("https://thedevbrowser.com");
+            await CreateTabAsync();
             await _bookmarkManager.RefreshAsync();
             await StartUpdateChecksAsync();
         };
@@ -173,6 +175,15 @@ public partial class MainWindow : Window
             TextTrimming = TextTrimming.CharacterEllipsis
         };
         var tab = new BrowserTab(browser, title);
+        tab.Content.Children.Add(browser);
+        tab.Content.Children.Add(tab.StartView);
+        browser.Visibility = Visibility.Hidden;
+        tab.StartView.NavigationRequested += (_, input) => browser.Source = ToAddress(input);
+        browser.NavigationStarting += (_, _) =>
+        {
+            tab.StartView.Visibility = Visibility.Collapsed;
+            browser.Visibility = Visibility.Visible;
+        };
         tab.Header = CreateTabHeader(tab);
         _tabs.Add(tab);
         TabStrip.Children.Add(tab.Header);
@@ -192,6 +203,7 @@ public partial class MainWindow : Window
 
         SelectTab(tab);
         await browser.EnsureCoreWebView2Async();
+        if (!_tabs.Contains(tab)) return tab;
         browser.CoreWebView2.DocumentTitleChanged += (_, _) =>
         {
             if (!string.IsNullOrWhiteSpace(browser.CoreWebView2.DocumentTitle)) title.Text = browser.CoreWebView2.DocumentTitle;
@@ -220,7 +232,7 @@ public partial class MainWindow : Window
         await browser.CoreWebView2.AddScriptToExecuteOnDocumentCreatedAsync(JsonDocumentViewer.Script);
         await _networkCapture.AttachAsync(browser.CoreWebView2);
         if (_activeTab == tab) _networkCapture.SetActiveWebView(browser.CoreWebView2);
-        if (navigate) browser.Source = ToAddress(address ?? "https://thedevbrowser.com");
+        if (navigate && !string.IsNullOrWhiteSpace(address)) browser.Source = ToAddress(address);
         return tab;
     }
 
@@ -256,17 +268,25 @@ public partial class MainWindow : Window
     {
         _activeTab = tab;
         if (tab.Browser.CoreWebView2 is not null) _networkCapture.SetActiveWebView(tab.Browser.CoreWebView2);
-        BrowserHost.Content = tab.Browser;
+        BrowserHost.Content = tab.Content;
         foreach (var item in _tabs)
             item.Header.Background = item == tab ? (Brush)FindResource("SurfaceBrush") : Brushes.Transparent;
-        if (tab.Browser.Source is not null) AddressBar.Text = tab.Browser.Source.AbsoluteUri;
+        AddressBar.Text = tab.Browser.Source?.AbsoluteUri ?? string.Empty;
         _ = UpdateBookmarkStateAsync();
         if (StorageWorkspace.Visibility == Visibility.Visible) _ = StorageInspector.SetBrowserAsync(tab.Browser);
+        Dispatcher.BeginInvoke(() =>
+        {
+            if (_activeTab != tab || BrowserWorkspace.Visibility != Visibility.Visible) return;
+            if (tab.StartView.Visibility == Visibility.Visible) tab.StartView.FocusSearch();
+            else tab.Browser.Focus();
+        });
     }
 
     private void CloseTab(BrowserTab tab)
     {
         var index = _tabs.IndexOf(tab);
+        if (index < 0) return;
+        _closedTabs.Push(tab.Browser.Source?.AbsoluteUri);
         _tabs.Remove(tab);
         TabStrip.Children.Remove(tab.Header);
         tab.Browser.Dispose();
@@ -282,6 +302,55 @@ public partial class MainWindow : Window
     }
 
     private void AddTab_Click(object sender, RoutedEventArgs e) => _ = CreateTabAsync();
+
+    private void BrowserShortcut_PreviewKeyDown(object sender, KeyEventArgs e)
+    {
+        var key = e.Key == Key.System ? e.SystemKey : e.Key;
+        var shortcut = BrowserShortcuts.All.FirstOrDefault(item => item.Key == key && item.Modifiers == Keyboard.Modifiers);
+        if (shortcut is null) return;
+        if (BrowserWorkspace.Visibility != Visibility.Visible &&
+            shortcut.Action is not (BrowserShortcutAction.NewTab or BrowserShortcutAction.ReopenTab)) return;
+
+        e.Handled = true;
+        if (e.IsRepeat) return;
+        // WebView2 forwards accelerator keys into WPF. Leave its native callback
+        // before switching focus or disposing a browser control.
+        Dispatcher.BeginInvoke(async () => await ExecuteBrowserShortcutAsync(shortcut.Action));
+    }
+
+    private async Task ExecuteBrowserShortcutAsync(BrowserShortcutAction action)
+    {
+        switch (action)
+        {
+            case BrowserShortcutAction.NewTab:
+                ShowBrowserWorkspace_Click(this, new RoutedEventArgs());
+                await CreateTabAsync();
+                break;
+            case BrowserShortcutAction.ReopenTab:
+                if (_closedTabs.TryPop(out var address))
+                {
+                    ShowBrowserWorkspace_Click(this, new RoutedEventArgs());
+                    await CreateTabAsync(address);
+                }
+                break;
+            case BrowserShortcutAction.CloseTab:
+                if (_activeTab is not null) CloseTab(_activeTab);
+                break;
+            case BrowserShortcutAction.FocusAddress:
+                AddressBar.Focus();
+                AddressBar.SelectAll();
+                break;
+            case BrowserShortcutAction.NextTab:
+            case BrowserShortcutAction.PreviousTab:
+                if (_activeTab is null || _tabs.Count == 0) break;
+                var offset = action == BrowserShortcutAction.NextTab ? 1 : -1;
+                SelectTab(_tabs[(_tabs.IndexOf(_activeTab) + offset + _tabs.Count) % _tabs.Count]);
+                break;
+            case BrowserShortcutAction.Reload:
+                Refresh_Click(this, new RoutedEventArgs());
+                break;
+        }
+    }
 
     private void ShowBrowserWorkspace_Click(object sender, RoutedEventArgs e)
     {
@@ -719,7 +788,12 @@ public partial class MainWindow : Window
 
     private async Task UpdateBookmarkStateAsync()
     {
-        if (_activeTab?.Browser.Source is null) return;
+        if (_activeTab?.Browser.Source is null)
+        {
+            BookmarkButton.Foreground = (Brush)FindResource("MutedTextBrush");
+            BookmarkButton.ToolTip = "Save bookmark";
+            return;
+        }
         var bookmarked = await _bookmarks.FindByUrlAsync(_activeTab.Browser.Source.AbsoluteUri) is not null;
         BookmarkButton.Foreground = bookmarked ? (Brush)FindResource("AccentBrush") : (Brush)FindResource("MutedTextBrush");
         BookmarkButton.ToolTip = bookmarked ? "Edit bookmark" : "Save bookmark";
@@ -766,6 +840,8 @@ public partial class MainWindow : Window
 
     private sealed class BrowserTab(WebView2 browser, TextBlock title)
     {
+        public Grid Content { get; } = new();
+        public NewTabView StartView { get; } = new();
         public WebView2 Browser { get; } = browser;
         public TextBlock Title { get; } = title;
         public Border Header { get; set; } = null!;
