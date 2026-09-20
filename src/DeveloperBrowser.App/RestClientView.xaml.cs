@@ -10,12 +10,15 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
 using DeveloperBrowser.Core.Collections;
+using DeveloperBrowser.Core.Rest;
+using DeveloperBrowser.Infrastructure.Rest;
 
 namespace DeveloperBrowser.App;
 
 public partial class RestClientView : UserControl
 {
-    private readonly HttpClient _httpClient = new();
+    private readonly SafeRedirectClient _httpClient = new();
+    private bool _isSending;
     private readonly List<RestRequestTab> _requestTabs = [];
     private RestRequestTab? _activeRequestTab;
     private bool _isRestoringTab;
@@ -25,7 +28,11 @@ public partial class RestClientView : UserControl
     private ICollectionImportExportService? _collectionImportExport;
     private RestEnvironment? _activeEnvironment;
     private RestEnvironment? _selectedEnvironment;
-    private Guid? _savedRequestId;
+    private Guid? _savedRequestId
+    {
+        get => _activeRequestTab?.SavedRequestId;
+        set { if (_activeRequestTab is not null) _activeRequestTab.SavedRequestId = value; }
+    }
     private bool _saveAsRequested;
     private bool _isDirty;
     private readonly List<LibraryItem> _libraryItems = [];
@@ -110,6 +117,10 @@ public partial class RestClientView : UserControl
 
     private async Task SendAsync()
     {
+        if (_isSending || _activeRequestTab is null) return;
+        _isSending = true;
+        IsEnabled = false;
+        RedirectHistoryBox.Text = string.Empty;
         try
         {
             var resolved = ResolveEditorValues();
@@ -128,7 +139,7 @@ public partial class RestClientView : UserControl
                 if (!request.Headers.TryAddWithoutValidation(header.Key, value))
                 {
                     request.Content ??= new StringContent(string.Empty);
-                    request.Content.Headers.TryAddWithoutValidation(header.Key, header.Value);
+                    request.Content.Headers.TryAddWithoutValidation(header.Key, value);
                 }
             }
 
@@ -137,7 +148,16 @@ public partial class RestClientView : UserControl
             ResponseMetaText.Text = "Waiting for server…";
             SetFooterStatus("Sending request", "Waiting for the server", isBusy: true);
             var stopwatch = Stopwatch.StartNew();
-            using var response = await _httpClient.SendAsync(request);
+            var configured = _activeRequestTab.RedirectSettings ?? LoadRedirectDefaults();
+            var settings = configured with { TrustedOrigins = configured.TrustedOrigins.ToList() };
+            using var redirectResult = await _httpClient.SendAsync(request, settings, (prompt, ct) =>
+            {
+                ct.ThrowIfCancellationRequested();
+                return Task.FromResult(ConfirmRedirect(prompt, settings));
+            });
+            var response = redirectResult.Response;
+            RedirectHistoryBox.Text = redirectResult.History.Count == 0 ? "No redirects." : string.Join("\n\n", redirectResult.History.Select(h =>
+                $"{h.StatusCode}: {h.SourceOrigin} → {h.DestinationOrigin}\n{h.Outcome}"));
             stopwatch.Stop();
 
             var responseBody = await response.Content.ReadAsStringAsync();
@@ -145,7 +165,8 @@ public partial class RestClientView : UserControl
             ResponseHeadersBox.Text = string.Join(Environment.NewLine, response.Headers.Concat(response.Content.Headers).Select(header => $"{header.Key}: {string.Join(", ", header.Value)}"));
             StatusText.Text = $"{(int)response.StatusCode} {response.ReasonPhrase}";
             StatusBadge.Background = new SolidColorBrush(response.IsSuccessStatusCode ? Color.FromRgb(29, 100, 70) : Color.FromRgb(128, 56, 64));
-            ResponseMetaText.Text = $"{stopwatch.ElapsedMilliseconds} ms · {responseBody.Length:N0} B";
+            ResponseMetaText.Text = $"{stopwatch.ElapsedMilliseconds} ms · {responseBody.Length:N0} B" +
+                (redirectResult.History.Count > 0 ? " · See Redirects" : "");
             SetFooterStatus($"{request.Method} {(int)response.StatusCode}", ResponseMetaText.Text, isFailure: !response.IsSuccessStatusCode);
             CaptureActiveTab();
         }
@@ -159,6 +180,7 @@ public partial class RestClientView : UserControl
             SetFooterStatus("Request failed", exception.GetType().Name, isFailure: true);
             CaptureActiveTab();
         }
+        finally { _isSending = false; IsEnabled = true; }
     }
 
     private void CreateRequestTab()
@@ -231,6 +253,7 @@ public partial class RestClientView : UserControl
         foreach (var field in tab.Headers) Headers.Add(field.Clone());
         ResponseDataViewer.SetContent(tab.ResponseBody);
         ResponseHeadersBox.Text = tab.ResponseHeaders;
+        RedirectHistoryBox.Text = tab.RedirectHistory;
         StatusText.Text = tab.Status;
         ResponseMetaText.Text = tab.ResponseMeta;
         StatusBadge.Background = tab.StatusBrush;
@@ -256,6 +279,7 @@ public partial class RestClientView : UserControl
         tab.Headers = Headers.Select(field => field.Clone()).ToList();
         tab.ResponseBody = ResponseDataViewer.RawText;
         tab.ResponseHeaders = ResponseHeadersBox.Text;
+        tab.RedirectHistory = RedirectHistoryBox.Text;
         tab.Status = StatusText.Text;
         tab.ResponseMeta = ResponseMetaText.Text;
         tab.StatusBrush = StatusBadge.Background;
@@ -1848,7 +1872,7 @@ public partial class RestClientView : UserControl
         if (_collections is null || _saveDestinationCollection is null) { SaveHintText.Text = "Choose a save location."; return; }
         var name = string.IsNullOrWhiteSpace(SaveNameBox.Text) ? UrlBox.Text.Trim() : SaveNameBox.Text.Trim();
         if (string.IsNullOrWhiteSpace(name)) { SaveHintText.Text = "Enter a URL or request name."; return; }
-        var item = new SavedRestRequest { Id = forceNew || _savedRequestId is null ? Guid.NewGuid() : _savedRequestId.Value, CollectionId = _saveDestinationCollection.Id, FolderId = _saveDestinationFolder?.Id, Name = name, Method = SelectedContent(MethodBox), Url = UrlBox.Text, Parameters = Parameters.Select(x => new SavedRequestField(x.IsEnabled, x.Key, x.Value)).ToList(), Headers = Headers.Select(x => new SavedRequestField(x.IsEnabled, x.Key, x.Value)).ToList(), Body = BodyBox.Text, ContentType = SelectedContent(ContentTypeBox), AuthType = SelectedContent(AuthTypeBox), AuthToken = TokenBox.Password, AuthUsername = UsernameBox.Text, AuthPassword = PasswordBox.Password };
+        var item = new SavedRestRequest { Id = forceNew || _savedRequestId is null ? Guid.NewGuid() : _savedRequestId.Value, CollectionId = _saveDestinationCollection.Id, FolderId = _saveDestinationFolder?.Id, Name = name, Method = SelectedContent(MethodBox), Url = UrlBox.Text, Parameters = Parameters.Select(x => new SavedRequestField(x.IsEnabled, x.Key, x.Value)).ToList(), Headers = Headers.Select(x => new SavedRequestField(x.IsEnabled, x.Key, x.Value)).ToList(), Body = BodyBox.Text, ContentType = SelectedContent(ContentTypeBox), AuthType = SelectedContent(AuthTypeBox), AuthToken = TokenBox.Password, AuthUsername = UsernameBox.Text, AuthPassword = PasswordBox.Password, RedirectSettings = _activeRequestTab?.RedirectSettings };
         var saved = await _collections.SaveRequestAsync(item);
         _savedRequestId = saved.Id; _saveAsRequested = false; _isDirty = false; if (_activeRequestTab is not null) _activeRequestTab.IsDirty = false; SaveFlyout.Visibility = Visibility.Collapsed;
         await RefreshLibraryAsync(); UpdateRequestTabHeader(_activeRequestTab!);
@@ -1869,7 +1893,7 @@ public partial class RestClientView : UserControl
     private void LoadSavedRequest(SavedRestRequest request)
     {
         CaptureActiveTab();
-        var tab = new RestRequestTab { MethodIndex = Math.Max(0, Array.IndexOf(Methods, request.Method)), Url = request.Url, Body = request.Body, Parameters = request.Parameters.Select(x => new RequestField { IsEnabled = x.IsEnabled, Key = x.Key, Value = x.Value }).ToList(), Headers = request.Headers.Select(x => new RequestField { IsEnabled = x.IsEnabled, Key = x.Key, Value = x.Value }).ToList(), ContentTypeIndex = request.ContentType.Contains("xml", StringComparison.OrdinalIgnoreCase) ? 2 : request.ContentType.Contains("text", StringComparison.OrdinalIgnoreCase) ? 1 : 0, AuthTypeIndex = request.AuthType.StartsWith("Bearer", StringComparison.OrdinalIgnoreCase) ? 1 : request.AuthType.StartsWith("Basic", StringComparison.OrdinalIgnoreCase) ? 2 : 0, Token = request.AuthToken ?? string.Empty, Username = request.AuthUsername ?? string.Empty, Password = request.AuthPassword ?? string.Empty };
+        var tab = new RestRequestTab { MethodIndex = Math.Max(0, Array.IndexOf(Methods, request.Method)), Url = request.Url, Body = request.Body, Parameters = request.Parameters.Select(x => new RequestField { IsEnabled = x.IsEnabled, Key = x.Key, Value = x.Value }).ToList(), Headers = request.Headers.Select(x => new RequestField { IsEnabled = x.IsEnabled, Key = x.Key, Value = x.Value }).ToList(), ContentTypeIndex = request.ContentType.Contains("xml", StringComparison.OrdinalIgnoreCase) ? 2 : request.ContentType.Contains("text", StringComparison.OrdinalIgnoreCase) ? 1 : 0, AuthTypeIndex = request.AuthType.StartsWith("Bearer", StringComparison.OrdinalIgnoreCase) ? 1 : request.AuthType.StartsWith("Basic", StringComparison.OrdinalIgnoreCase) ? 2 : 0, Token = request.AuthToken ?? string.Empty, Username = request.AuthUsername ?? string.Empty, Password = request.AuthPassword ?? string.Empty, RedirectSettings = request.RedirectSettings };
         _saveDestinationCollection = _collectionTreeCollections.FirstOrDefault(collection => collection.Id == request.CollectionId);
         _saveDestinationFolder = _saveDestinationCollection?.Folders.FirstOrDefault(folder => folder.Id == request.FolderId);
         UpdateSaveLocationDisplay();
@@ -1930,6 +1954,9 @@ public partial class RestClientView : UserControl
 
     private sealed class RestRequestTab
     {
+        public Guid? SavedRequestId { get; set; }
+        public RedirectSettings? RedirectSettings { get; set; }
+        public string RedirectHistory { get; set; } = string.Empty;
         public int MethodIndex { get; set; }
         public string Url { get; set; } = string.Empty;
         public int ContentTypeIndex { get; set; }

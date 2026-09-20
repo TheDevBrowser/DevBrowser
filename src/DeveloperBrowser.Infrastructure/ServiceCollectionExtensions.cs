@@ -20,7 +20,8 @@ public static class ServiceCollectionExtensions
         var connectionString = $"Data Source={Path.Combine(dataDirectory, "developer-browser.db")}";
         services.AddDbContext<DeveloperBrowserDbContext>(options => options.UseSqlite(connectionString));
         services.AddDbContextFactory<DeveloperBrowserDbContext>(options => options.UseSqlite(connectionString));
-        services.AddHttpClient<IRestClient, HttpRestClient>();
+        services.AddSingleton<SafeRedirectClient>(_ => new SafeRedirectClient());
+        services.AddSingleton<IRestClient, HttpRestClient>();
         services.AddSingleton<ISecretStore>(new DpapiSecretStore(Path.Combine(dataDirectory, "secrets")));
         services.AddSingleton<IBookmarkRepository, SqliteBookmarkRepository>();
         services.AddSingleton<IBookmarkService, BookmarkService>();
