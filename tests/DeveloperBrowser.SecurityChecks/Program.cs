@@ -2,12 +2,14 @@ using System.Text;
 using System.Text.Json;
 using DeveloperBrowser.Core.Collections;
 using DeveloperBrowser.Core.Security;
+using DeveloperBrowser.Core.Rest;
 using DeveloperBrowser.Infrastructure.Collections;
 using DeveloperBrowser.Infrastructure.Persistence;
 using DeveloperBrowser.Infrastructure.Security;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 
+await RedirectChecks.RunAsync();
 var directory = Path.Combine(Path.GetTempPath(), "DevBrowser-security-" + Guid.NewGuid().ToString("N"));
 Directory.CreateDirectory(directory);
 try
@@ -26,7 +28,8 @@ try
         Url = "https://example.test/?key=" + token, AuthType = "Bearer", AuthToken = token,
         AuthUsername = "user", AuthPassword = password, Body = "{\"password\":\"" + password + "\"}",
         Headers = [new(true, "X-Api-Key", token), new(true, "Template", "{{SECRET}}")],
-        Parameters = [new(true, "password", password)]
+        Parameters = [new(true, "password", password)],
+        RedirectSettings = new() { MaxRedirects = 4, TrustedOrigins = [new("https://example.test", "https://trusted.test", true, true)] }
     };
     await service.SaveRequestAsync(request);
     await AssertRoundTrip();
@@ -44,6 +47,7 @@ try
     Check((await service.SearchAsync(token)).Single().Id == request.Id, "Encrypted URL search");
     var copy = await service.DuplicateRequestAsync(request.Id);
     Check(copy.AuthToken == token && copy.AuthPassword == password, "Duplicate decrypts credentials");
+    Check(copy.RedirectSettings?.MaxRedirects == 4 && copy.RedirectSettings.TrustedOrigins.Count == 1, "Duplicate preserves request redirect settings");
     await service.DeleteRequestAsync(copy.Id);
     Check(Directory.GetFiles(Path.Combine(directory, "secrets"), "*.secret").Length == 1, "Delete cleans duplicate secret");
     request.AuthToken = null;
@@ -112,6 +116,11 @@ try
     Check(!redacted.Contains(token) && !redacted.Contains(password), "Default export still redacts auth fields");
     var imported = await exporter.ImportAsync(await exporter.ExportAsync(collection.Id, true));
     Check(imported.Requests.Single().AuthPassword == password, "Explicit full export/import round trip");
+    var untrusted = System.Text.Json.Nodes.JsonNode.Parse(await exporter.ExportAsync(collection.Id, true))!;
+    untrusted["collection"]!["requests"]![0]!["redirectSettings"] = JsonSerializer.SerializeToNode(request.RedirectSettings, new JsonSerializerOptions(JsonSerializerDefaults.Web));
+    var untrustedImport = await exporter.ImportAsync(untrusted.ToJsonString());
+    Check(untrustedImport.Requests.Single().RedirectSettings is null, "Import cannot grant redirect permissions");
+    await service.DeleteCollectionAsync(untrustedImport.Id);
 
     // Missing protected data is an error, never silently substituted with empty credentials.
     store.MissingReads = true;
@@ -131,6 +140,7 @@ try
         var loaded = (await new LocalCollectionService(factory, store).GetCollectionsAsync()).Single().Requests.Single();
         Check(loaded.AuthToken == token && loaded.AuthPassword == password && loaded.Url == request.Url &&
             loaded.Body == request.Body && loaded.Headers.SequenceEqual(request.Headers) && loaded.Parameters.SequenceEqual(request.Parameters), "Restart round trip");
+        Check(loaded.RedirectSettings?.MaxRedirects == 4 && loaded.RedirectSettings.TrustedOrigins.Single().DestinationOrigin == "https://trusted.test", "Redirect settings survive encrypted storage and restart");
     }
 }
 finally

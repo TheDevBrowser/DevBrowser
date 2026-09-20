@@ -1,6 +1,7 @@
 using System.Text.Json;
 using DeveloperBrowser.Core.Collections;
 using DeveloperBrowser.Core.Security;
+using DeveloperBrowser.Core.Rest;
 using DeveloperBrowser.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 
@@ -81,6 +82,7 @@ public sealed class LocalCollectionService(IDbContextFactory<DeveloperBrowserDbC
     public async Task<SavedRestRequest> SaveRequestAsync(SavedRestRequest request, CancellationToken ct = default)
     {
         Validate(request);
+        request.RedirectSettings?.Validate();
         await using var db = await Db(ct);
         var existing = await db.SavedRequests.FindAsync([request.Id], ct);
         if (existing is null)
@@ -91,7 +93,8 @@ public sealed class LocalCollectionService(IDbContextFactory<DeveloperBrowserDbC
         var oldKey = existing.SecretStoreKey;
         Copy(request, existing);
         var result = ToModel(existing);
-        await ProtectAsync(existing, ct);
+        result.RedirectSettings = request.RedirectSettings;
+        await ProtectAsync(existing, ct, request.RedirectSettings);
         await db.SaveChangesAsync(ct);
         await RemoveSecretAsync(oldKey);
         return result;
@@ -122,11 +125,11 @@ public sealed class LocalCollectionService(IDbContextFactory<DeveloperBrowserDbC
         return result;
     }
 
-    private async Task ProtectAsync(SavedRequestEntity entity, CancellationToken ct)
+    private async Task ProtectAsync(SavedRequestEntity entity, CancellationToken ct, RedirectSettings? redirectSettings = null)
     {
         var key = $"saved-request:{entity.Id}:{Guid.NewGuid()}";
         var payload = JsonSerializer.Serialize(new RequestSecrets(entity.Url, entity.ParametersJson, entity.HeadersJson,
-            entity.Body, entity.AuthToken, entity.AuthUsername, entity.AuthPassword), Json);
+            entity.Body, entity.AuthToken, entity.AuthUsername, entity.AuthPassword, redirectSettings), Json);
         await secrets.SaveAsync(key, payload, ct);
         // Verify durable readability before removing the original plaintext.
         if (await secrets.GetAsync(key, ct) != payload) throw new InvalidOperationException("Could not verify protected request storage.");
@@ -151,6 +154,7 @@ public sealed class LocalCollectionService(IDbContextFactory<DeveloperBrowserDbC
         model.AuthToken = values.AuthToken;
         model.AuthUsername = values.AuthUsername;
         model.AuthPassword = values.AuthPassword;
+        model.RedirectSettings = values.RedirectSettings;
         return model;
     }
 
@@ -165,7 +169,7 @@ public sealed class LocalCollectionService(IDbContextFactory<DeveloperBrowserDbC
     }
 
     private sealed record RequestSecrets(string Url, string ParametersJson, string HeadersJson, string Body,
-        string? AuthToken, string? AuthUsername, string? AuthPassword);
+        string? AuthToken, string? AuthUsername, string? AuthPassword, RedirectSettings? RedirectSettings = null);
     internal static RestCollection ToModel(CollectionEntity c, IEnumerable<CollectionFolderEntity> folders, IEnumerable<SavedRequestEntity> requests) => new() { Id = c.Id, Name = c.Name, Description = c.Description, SortOrder = c.SortOrder, CreatedAt = c.CreatedAt, UpdatedAt = c.UpdatedAt, Folders = folders.Select(x => new RestCollectionFolder { Id = x.Id, CollectionId = x.CollectionId, ParentFolderId = x.ParentFolderId, Name = x.Name, SortOrder = x.SortOrder, CreatedAt = x.CreatedAt, UpdatedAt = x.UpdatedAt }).ToList(), Requests = requests.Select(ToModel).ToList() };
     internal static SavedRestRequest ToModel(SavedRequestEntity x) => new() { Id = x.Id, CollectionId = x.CollectionId, FolderId = x.FolderId, Name = x.Name, Description = x.Description, Method = x.Method, Url = x.Url, Parameters = Deserialize(x.ParametersJson), Headers = Deserialize(x.HeadersJson), Body = x.Body, ContentType = x.ContentType, AuthType = x.AuthType, AuthToken = x.AuthToken, AuthUsername = x.AuthUsername, AuthPassword = x.AuthPassword, SortOrder = x.SortOrder, CreatedAt = x.CreatedAt, UpdatedAt = x.UpdatedAt };
     private static List<SavedRequestField> Deserialize(string text) { try { return JsonSerializer.Deserialize<List<SavedRequestField>>(text, Json) ?? []; } catch { return []; } }
