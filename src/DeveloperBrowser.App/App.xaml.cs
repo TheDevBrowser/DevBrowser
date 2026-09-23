@@ -14,7 +14,6 @@ namespace DeveloperBrowser.App;
 
 public partial class App : Application
 {
-    public Greetings.GreetingService Greetings { get; } = new();
 
     private ServiceProvider? _provider;
     private CrashReportingService? _crashReporting;

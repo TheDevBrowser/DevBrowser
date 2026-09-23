@@ -5,6 +5,30 @@ namespace DeveloperBrowser.App;
 
 public partial class NewTabView : UserControl
 {
+    // Add or remove messages here. Pick once per new-tab view, not on tab switches.
+    private static readonly string[] StatusMessages =
+    [
+        "awaiting destination_",
+        "ready.",
+        "session initialized.",
+        "new tab initialized.",
+        "localhost is calling.",
+        "waiting for input_",
+        "no requests pending. yet.",
+        "environment: developer",
+        "works on my machine.",
+        "DNS is innocent. probably.",
+        "cache cleared. confidence restored.",
+        "break something responsibly.",
+        "ship something.",
+        "HTTP 200 — ready.",
+        "connection established.",
+        "where to, dev?",
+        "compiling thoughts...",
+        "new tab. clean state. questionable intentions.",
+        "nothing to debug. yet."
+    ];
+
     public event EventHandler<string>? NavigationRequested;
 
     public void FocusSearch() => SearchBox.Focus();
@@ -12,12 +36,7 @@ public partial class NewTabView : UserControl
     public NewTabView()
     {
         InitializeComponent();
-        if (System.Windows.Application.Current is App app)
-        {
-            var greeting = app.Greetings.CurrentGreeting;
-            GreetingText.Text = greeting.Text;
-            GreetingText.ToolTip = $"{greeting.Language} · {greeting.Pronunciation}";
-        }
+        StatusMessage.Text = StatusMessages[Random.Shared.Next(StatusMessages.Length)];
     }
 
     private void SearchBox_KeyDown(object sender, KeyEventArgs e)
